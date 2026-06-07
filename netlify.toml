@@ -1,0 +1,45 @@
+[build]
+publish = "."
+functions = "netlify/functions"
+
+[[redirects]]
+from = "/api/client-auth/login"
+to = "/.netlify/functions/client-auth-login"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/debug/calls"
+to = "/.netlify/functions/debug-calls"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/call"
+to = "/.netlify/functions/start-call"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/debug/reset"
+to = "/.netlify/functions/debug-reset"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/analytics"
+to = "/.netlify/functions/analytics"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/send-link"
+to = "/.netlify/functions/send-booking-link"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/callback"
+to = "/.netlify/functions/create-callback-request"
+status = 200
+force = true

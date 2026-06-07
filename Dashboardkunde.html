@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tawano Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f4f7fb;--card:#fff;--line:#dfe7f0;--text:#132238;--muted:#64748b;--green:#0f8a5f;--orange:#c96500;--blue:#1d4ed8;--red:#b42318}
+body{font-family:'Manrope',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+button,input{font-family:'Manrope',sans-serif}
+.hidden{display:none!important}
+
+.login{min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,440px);background:linear-gradient(140deg,#eaf5ff 0,#f4f7fb 60%)}
+.login-left{padding:50px clamp(22px,6vw,88px);display:flex;flex-direction:column;justify-content:center}
+.brand{font-size:24px;font-weight:800;color:#103a75;margin-bottom:24px}
+.login-left h1{font-size:clamp(32px,6vw,58px);line-height:1.04;letter-spacing:-1px;margin-bottom:12px}
+.login-left p{font-size:17px;color:#4c5f78;line-height:1.65;max-width:620px}
+.login-mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-width:680px;margin-top:28px}
+.login-mini .box{background:#ffffffcc;border:1px solid var(--line);border-radius:12px;padding:12px}
+.login-mini span{display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:#73839a;margin-bottom:5px}
+.login-mini strong{font-size:30px}
+.login-right{display:flex;align-items:center;justify-content:center;padding:22px}
+.login-card{width:min(420px,100%);background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 18px 42px rgba(12,27,47,.08)}
+.login-card h2{font-size:25px;margin-bottom:8px}
+.login-card p{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:16px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.field label{font-size:11px;font-weight:800;text-transform:uppercase;color:#4c607a}
+.field input,.phone-row input{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:12px 13px;font-size:15px;outline:none}
+.field input:focus,.phone-row input:focus{border-color:var(--green);box-shadow:0 0 0 4px rgba(15,138,95,.12)}
+.btn{border:none;border-radius:10px;padding:11px 13px;font-size:14px;font-weight:800;cursor:pointer}
+.btn-main{background:var(--green);color:#fff;width:100%}
+.btn-ghost{background:#fff;color:#334b67;border:1.5px solid var(--line)}
+.btn-danger{background:#fff0f0;color:#9f1c1c;border:1.5px solid #f3c8c8}
+.auth-info{margin-top:10px;min-height:18px;font-size:13px;font-weight:700;color:var(--muted)}
+.auth-info.err{color:var(--red)}
+.auth-info.ok{color:var(--green)}
+
+.top{position:sticky;top:0;z-index:10;background:#fffffff2;border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+.top-inner{max-width:1180px;margin:0 auto;padding:13px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.top-left{display:flex;align-items:center;gap:10px}
+.logo{font-size:20px;font-weight:900;color:#132238}
+.status{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:999px;background:#eef4ff;color:#486080;font-size:12px;font-weight:800}
+.dot{width:8px;height:8px;border-radius:999px;background:#aab8ca}
+.status.ok .dot{background:#22c55e}
+.status.err .dot{background:#ef4444}
+.userbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.user-email{font-size:13px;color:#61758e;font-weight:700;padding-right:4px}
+
+.main{max-width:1180px;margin:0 auto;padding:18px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px}
+.hero{background:linear-gradient(135deg,#ffffff 0,#eef6ff 100%);border:1px solid var(--line);border-radius:20px;padding:22px 22px 18px;margin-bottom:12px}
+.hero h1{font-size:33px;line-height:1.04;letter-spacing:-1px;margin-bottom:8px}
+.hero p{font-size:15px;color:#425770;line-height:1.7}
+.summary-line{font-size:19px;font-weight:800;color:#132238;line-height:1.5;max-width:880px}
+.summary-note{margin-top:8px;font-size:13px;color:#66798f}
+
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+.card span{display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:#73839a;margin-bottom:8px}
+.card strong{display:block;font-size:34px;line-height:1.05}
+.card p{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5}
+.card.alert{background:#fff6f5;border-color:#f5d0cc}
+.card.alert strong{color:var(--red)}
+.card.focus{background:#fff7ec;border-color:#f3dfbe}
+.card.focus strong{color:var(--orange)}
+.card.value{background:#eef8f3;border-color:#d5eadf}
+.card.value strong{color:var(--green)}
+.card.info{background:#f2f7ff;border-color:#dbe7fb}
+.card.info strong{color:var(--blue)}
+
+.insight-list{display:flex;flex-direction:column;gap:8px}
+.insight-item{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid #e6eef7;border-radius:12px;background:#fbfdff;padding:10px 12px}
+.insight-item strong{font-size:13px;color:#203a57}
+.insight-item span{font-size:12px;font-weight:800;color:#5f7591}
+.ai-copy{font-size:14px;color:#425770;line-height:1.75}
+.ai-copy strong{color:#132238}
+
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.panel-head{padding:14px 16px;border-bottom:1px solid #e9eff6;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.panel-head h2{font-size:18px}
+.panel-head p{font-size:13px;color:var(--muted)}
+.filters{display:flex;gap:7px;flex-wrap:wrap}
+.pill{border:1.5px solid var(--line);background:#fff;color:#445c78;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:800;cursor:pointer}
+.pill.active{background:#132238;color:#fff;border-color:#132238}
+.list{display:flex;flex-direction:column;padding:6px 0}
+.list-footer{display:flex;justify-content:center;padding:0 16px 16px}
+.btn-more{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font-size:12px;font-weight:800;color:#1f3a57;cursor:pointer}
+.row{display:flex;flex-direction:column;gap:0;padding:20px 18px;border-bottom:1px solid #eef3f8}
+.row:last-child{border-bottom:none}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;font-size:12px;font-weight:800;width:max-content}
+.badge::before{content:'';width:7px;height:7px;border-radius:999px;background:currentColor}
+.badge.done{background:#eaf9f1;color:#0f8a5f}
+.badge.callback{background:#fff4e8;color:#c96500}
+.badge.transfer{background:#edf3ff;color:#1d4ed8}
+.badge.problem{background:#fff1ef;color:#b42318}
+.badge.live{background:#edf3ff;color:#1d4ed8}
+.task-main{display:flex;flex-direction:column;gap:12px;min-width:0}
+.task-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.priority{display:inline-flex;align-items:center;padding:6px 9px;border-radius:999px;font-size:12px;font-weight:800}
+.priority.high{background:#fff1ef;color:#b42318}
+.priority.medium{background:#fff4e8;color:#c96500}
+.priority.low{background:#eef5ff;color:#1d4ed8}
+.maintext strong{display:block;font-size:16px;margin-bottom:4px}
+.maintext span{display:block;font-size:14px;color:var(--muted);line-height:1.6}
+.task-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.task-meta div{border:1px solid #e6eef7;border-radius:10px;background:#fbfdff;padding:10px 12px}
+.task-meta em{display:block;font-style:normal;font-size:11px;font-weight:800;text-transform:uppercase;color:#73839a;margin-bottom:5px}
+.task-meta b{display:block;font-size:13px;color:#213b57;line-height:1.5;white-space:normal}
+.task-meta .meta-anliegen b{font-size:12px;color:#3a5270;line-height:1.55}
+.task-footer{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.next{font-size:13px;font-weight:800;color:#36506f}
+.next small{display:block;color:#8090a5;margin-top:4px;font-weight:700}
+.task-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.btn-mini{border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:9px 13px;font-size:12px;font-weight:800;color:#27415f;cursor:pointer}
+.btn-mini.primary{background:#132238;border-color:#132238;color:#fff}
+.btn-mini.done{background:#eef8f3;border-color:#d8ebdf;color:#0f8a5f}
+.btn-mini.finish-pill{min-width:132px}
+.btn-mini.finish-only{min-width:44px;padding:9px 12px}
+.btn-mini:disabled{opacity:.45;cursor:not-allowed}
+.empty{padding:30px 14px;text-align:center;color:#6f8198;font-size:14px}
+
+.row{cursor:pointer;transition:background .12s}
+.row:hover{background:#f7fbff}
+
+.detail-overlay{position:fixed;inset:0;background:rgba(10,20,40,.45);z-index:100;display:flex;justify-content:flex-end}
+.detail-panel{background:#fff;width:min(440px,100%);height:100%;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:12px;box-shadow:-4px 0 24px rgba(0,0,0,.12)}
+.detail-panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px}
+.detail-panel-head h3{font-size:20px;line-height:1.2;flex:1}
+.detail-panel-head button{background:none;border:1px solid var(--line);border-radius:8px;font-size:18px;width:34px;height:34px;cursor:pointer;flex-shrink:0;color:var(--muted)}
+.detail-row{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.detail-row em{display:block;font-style:normal;font-size:11px;font-weight:800;text-transform:uppercase;color:#6f839d;margin-bottom:4px}
+.detail-row p{font-size:14px;color:var(--text);line-height:1.5}
+.detail-list{display:flex;flex-direction:column;gap:7px}
+.detail-list-item{padding:9px 11px;border-radius:10px;background:#fbfdff;border:1px solid #e6eef7;font-size:14px;line-height:1.5;color:#213b57}
+.detail-list-item.action{background:#edf3ff;border-color:#d8e5ff;color:#1d4ed8}
+.detail-list-item.done{background:#eaf9f1;border-color:#d8ebdf;color:#0f8a5f}
+.detail-list-item.risk{background:#fff4e8;border-color:#f3dfbe;color:#9a5700}
+.detail-list-item.topic{background:#f2f7ff;border-color:#dbe7fb;color:#234264}
+.detail-list-item.note{background:#fbfdff;border-color:#e6eef7;color:#3d536f}
+
+.right{display:flex;flex-direction:column;gap:10px;position:sticky;top:86px;height:max-content}
+.right .box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px}
+.right h3{font-size:18px;margin-bottom:7px}
+.right p{font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:10px}
+.phone-row{display:flex;gap:7px;flex-wrap:wrap}
+.phone-row .btn{min-width:110px}
+.message{display:none;margin-top:9px;font-size:13px;font-weight:700}
+.message.ok{display:block;color:var(--green)}
+.message.err{display:block;color:var(--red)}
+
+@media(max-width:1120px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:980px){.main{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.right{position:static}.task-meta{grid-template-columns:1fr}}
+@media(max-width:680px){.login{grid-template-columns:1fr}.login-left{padding:34px 18px 10px}.login-right{padding:16px}.login-mini{grid-template-columns:1fr}.cards{grid-template-columns:1fr}.hero h1{font-size:28px}.summary-line{font-size:17px}.task-head,.task-footer{align-items:flex-start}}
+</style>
+</head>
+<body>
+<section id="login-screen" class="login">
+  <div class="login-left">
+    <div class="brand">Tawano</div>
+    <h1>Einfach sehen, was bei den Anrufen los ist.</h1>
+    <p>Ohne Technik. Nur: Was ist offen, was ist erledigt und was musst du als Naechstes tun.</p>
+    <div class="login-mini">
+      <div class="box"><span>Offen</span><strong id="login-open">0</strong></div>
+      <div class="box"><span>Erledigt</span><strong id="login-done">0</strong></div>
+      <div class="box"><span>Heute</span><strong id="login-today">0</strong></div>
+    </div>
+  </div>
+  <div class="login-right">
+    <div class="login-card">
+      <h2>Einloggen</h2>
+      <p>Einmal anmelden und direkt deine echten Anrufdaten sehen.</p>
+      <div class="field"><label for="login-email">E-Mail</label><input id="login-email" type="email" autocomplete="email" placeholder="studio@example.de"></div>
+      <div class="field"><label for="login-password">Passwort</label><input id="login-password" type="password" autocomplete="current-password" placeholder="Passwort"></div>
+      <button class="btn btn-main" onclick="loginWithPassword()">Einloggen</button>
+      <div id="auth-info" class="auth-info">Bereit.</div>
+    </div>
+  </div>
+</section>
+
+<section id="dashboard-screen" class="hidden">
+  <header class="top">
+    <div class="top-inner">
+      <div class="top-left"><div class="logo">Tawano.</div><div id="status-pill" class="status"><span class="dot"></span><span id="status-text">Verbinde...</span></div></div>
+      <div class="userbar"><span id="user-email" class="user-email"></span><button class="btn btn-ghost" onclick="refreshCalls()">Aktualisieren</button><button class="btn btn-danger" onclick="resetDashboardData()">Reset</button><button class="btn btn-ghost" onclick="logout()">Logout</button></div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section>
+      <div class="hero">
+        <h1>Heute auf einen Blick</h1>
+        <p id="hero-summary" class="summary-line">Heute wurden 0 Anrufe angenommen. 0 Kunden brauchen Rückruf. Geschätzter Umsatzwert: 0 €.</p>
+        <div id="hero-note" class="summary-note">Hier siehst du sofort, was passiert ist, was du jetzt tun musst und welchen Wert der Agent bringt.</div>
+      </div>
+
+      <div class="cards">
+        <div class="card alert"><span>Jetzt handeln</span><strong id="k-open">0</strong><p id="k-open-copy">Offene Rückrufe und Aufgaben.</p></div>
+        <div class="card info"><span>Kunden gerettet</span><strong id="k-saved">0</strong><p>Vom Agenten angenommene Anrufe heute.</p></div>
+        <div class="card value"><span>Umsatzchance</span><strong id="k-value">0 €</strong><p>Einfacher Richtwert aus heutigen Gesprächen.</p></div>
+        <div class="card focus"><span>Problemfälle</span><strong id="k-problem">0</strong><p>Kritische oder unklare Gespräche.</p></div>
+      </div>
+
+      <section class="panel" style="margin-bottom:10px">
+        <div class="panel-head">
+          <div><h2>Was jetzt zu tun ist</h2><p>Die Liste ist automatisch nach Wichtigkeit sortiert.</p></div>
+          <div class="filters">
+            <button id="filter-all" class="pill active" onclick="setFilter('all')">Alle</button>
+            <button id="filter-callback" class="pill" onclick="setFilter('callback')">Rückruf</button>
+            <button id="filter-transfer" class="pill" onclick="setFilter('transfer')">Weiterleitung</button>
+            <button id="filter-done" class="pill" onclick="setFilter('done')">Erledigt</button>
+          </div>
+        </div>
+        <div id="call-list" class="list"><div class="empty">Noch keine Daten geladen.</div></div>
+        <div class="list-footer"><button id="more-calls-btn" class="btn-more hidden" onclick="toggleShowAllCalls()">Mehr Anrufe zeigen</button></div>
+      </section>
+    </section>
+
+    <aside class="right">
+      <div class="box">
+        <h3>Was die KI heute sagt</h3>
+        <p id="ai-summary" class="ai-copy">Sobald Daten da sind, erscheint hier eine einfache Tagesauswertung.</p>
+      </div>
+      <div class="box">
+        <h3>Warum rufen Kunden an?</h3>
+        <div id="ai-topics" class="insight-list"><div class="empty">Noch keine Werte.</div></div>
+      </div>
+      <div class="box">
+        <h3>Verbesserungsvorschlag</h3>
+        <p id="ai-recommendation" class="ai-copy">Sobald genug Daten da sind, siehst du hier einen konkreten nächsten Verbesserungsschritt.</p>
+      </div>
+      <div class="box">
+        <h3>Agent testen</h3>
+        <p>Eigene Nummer eintragen und Test-Call starten.</p>
+        <div class="phone-row"><input id="phone" type="tel" placeholder="+4917612345678"><button class="btn btn-main" onclick="startTestCall()">Test-Call</button></div>
+        <div id="call-msg" class="message"></div>
+      </div>
+    </aside>
+  </main>
+</section>
+
+<div id="call-detail-overlay" class="detail-overlay hidden" onclick="closeDetail(event)">
+  <div id="call-detail-panel" class="detail-panel">
+    <div class="detail-panel-head">
+      <h3 id="detail-title">Anruf-Details</h3>
+      <button onclick="closeDetail()" title="Schließen">×</button>
+    </div>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<script>
+const AGENT_ALIAS = 'beautyworlds-demo';
+const AGENT_ID = 'agent_2b923be111a55cac5e2ac3d547';
+const LIVE_SERVER_URL = 'https://tawanodashboard.netlify.app';
+
+let calls = [];
+let authToken = localStorage.getItem('tawano_access_token') || '';
+let currentUser = JSON.parse(localStorage.getItem('tawano_user') || 'null');
+let timer = null;
+let activeFilter = 'all';
+let completedTasks = loadCompletedTasks();
+let showAllCalls = false;
+const DEFAULT_VISIBLE_CALLS = 5;
+
+function defaultServerUrl() {
+  const host = location.hostname || '';
+  if (host === 'localhost' || host === '127.0.0.1') return location.origin;
+  if (host.includes('netlify.app')) return location.origin;
+  return LIVE_SERVER_URL;
+}
+function detailSummarySource(call) {
+  const analysis = call.callAnalysis || call.call_analysis || {};
+  const custom = analysis.custom_analysis_data || {};
+  return String(custom.summary || analysis.call_summary || analysis.summary || call.summary || '').trim();
+}
+function mapDisconnectionReason(reasonRaw) {
+  const reason = String(reasonRaw || '').trim().toLowerCase();
+  const mapped = {
+    user_hangup: 'Anrufer hat aufgelegt',
+    agent_hangup: 'Agent hat aufgelegt',
+    call_transfer: 'Weiterleitung',
+    voicemail_reached: 'Mailbox erreicht',
+    dial_no_answer: 'Keine Antwort',
+    dial_busy: 'Besetzt',
+    dial_failed: 'Anruf fehlgeschlagen',
+    inactivity: 'Inaktivität',
+    max_duration_reached: 'Maximaldauer erreicht',
+  };
+  return mapped[reason] || (reason ? reason.replace(/_/g, ' ') : '-');
+}
+function extractFieldByLabels(text, labels) {
+  const source = String(text || '');
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('(?:^|\\n)\\s*' + escaped + '\\s*:\\s*([^\\n]+)', 'i');
+    const m = source.match(re);
+    if (m && m[1]) return m[1].trim();
+  }
+  return '';
+}
+function extractDetailLines(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const out = [];
+  let inDetails = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = String(lines[i] || '').trim();
+    if (!line) continue;
+    const lower = line.toLowerCase();
+    if (lower.startsWith('details:') || lower.startsWith('detail:')) {
+      inDetails = true;
+      const rest = line.slice(line.indexOf(':') + 1).trim();
+      if (rest) out.push(rest);
+      continue;
+    }
+    if (!inDetails) continue;
+    const stops = ['erledigt:', 'nächster schritt:', 'naechster schritt:', 'next step:', 'stimmung:', 'sentiment:'];
+    if (stops.some((item) => lower.startsWith(item))) break;
+    const cleaned = line.replace(/^[-*•]\s*/, '').trim();
+    if (cleaned) out.push(cleaned);
+  }
+  return out;
+}
+function callbackInstructionFromText(text) {
+  const lower = String(text || '').toLowerCase();
+  const hhmm = lower.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
+  if (hhmm) return 'Heute um ' + hhmm[1] + ':' + hhmm[2] + ' zurückrufen';
+  const hour = lower.match(/\b([01]?\d|2[0-3])\s*(uhr|h|hr)\b/);
+  if (hour) return 'Heute um ' + hour[1] + ' Uhr zurückrufen';
+  if (lower.includes('so schnell wie möglich') || lower.includes('schnellstmöglich') || lower.includes('asap') || lower.includes('dringend')) return 'So schnell wie möglich zurückrufen';
+  return '';
+}
+function nextStepForCall(call, info) {
+  const summaryBlock = detailSummarySource(call);
+  const parsedNext = extractFieldByLabels(summaryBlock, ['nächster schritt', 'naechster schritt', 'next step']);
+  const callbackText = callbackInstructionFromText([parsedNext, summaryBlock, summaryFor(call)].join(' | '));
+  if (callbackText) return callbackText;
+  if (parsedNext) return parsedNext;
+  return info.next;
+}
+function detailFactsFor(call) {
+  const analysis = call.callAnalysis || call.call_analysis || {};
+  const custom = analysis.custom_analysis_data || {};
+  const facts = [];
+  const seen = new Set();
+  const push = (label, value, type) => {
+    const text = String(value || '').trim();
+    if (!text) return;
+    const key = text.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    facts.push({ label, text, type: type || 'note' });
+  };
+
+  const summaryBlock = detailSummarySource(call);
+  const parsedAnliegen = extractFieldByLabels(summaryBlock, ['anliegen', 'intent']);
+  const parsedDone = extractFieldByLabels(summaryBlock, ['erledigt', 'done']);
+  const parsedNext = extractFieldByLabels(summaryBlock, ['nächster schritt', 'naechster schritt', 'next step']);
+  const parsedDetails = extractDetailLines(summaryBlock);
+
+  const allText = [
+    summaryFor(call),
+    summaryBlock,
+    custom.intent,
+    custom.reason,
+    custom.customer_need,
+    custom.need,
+    custom.problem,
+    custom.issue,
+    custom.request,
+    custom.requested_action,
+    custom.notes,
+    custom.summary_notes,
+    custom.summary,
+    custom.key_points,
+    custom.highlights,
+    analysis.call_summary,
+    analysis.summary,
+    call.notes,
+    call.intent,
+    call.reason,
+    call.request,
+  ].filter(Boolean).map((value) => String(value).trim()).filter(Boolean);
+
+  const callbackText = callbackInstructionFromText([parsedNext, ...parsedDetails, ...allText].join(' | '));
+
+  push('Kurzfassung', summaryFor(call), 'topic');
+  push('Anliegen', parsedAnliegen || custom.intent || custom.reason || call.intent || call.reason, 'topic');
+  parsedDetails.forEach((item, idx) => push('Detail ' + (idx + 1), item, 'note'));
+  push('Erledigt', parsedDone, 'done');
+  push('Kunde will', custom.customer_need || custom.need || call.customer_need, 'topic');
+  push('Problem', custom.problem || custom.issue || call.problem, 'risk');
+  push('Wunsch', custom.request || custom.requested_action || call.request, 'topic');
+  push('Wichtige Infos', custom.notes || custom.summary_notes || call.notes, 'note');
+  push('Nächster Schritt', parsedNext || nextStepForCall(call, classifyCall(call)), 'action');
+  push('Stimmung', analysis.user_sentiment || call.sentiment, 'topic');
+  push('Beendigungsgrund', mapDisconnectionReason(call.disconnectionReason || call.disconnection_reason), 'risk');
+  push('Rückrufzeit', callbackText, 'action');
+
+  const hasStructuredBlock = Boolean(parsedAnliegen || parsedDone || parsedNext || parsedDetails.length);
+  const extraSource = hasStructuredBlock ? [] : allText;
+
+  extraSource.forEach((entry) => {
+    const text = String(entry || '').trim();
+    if (text && !seen.has(text.toLowerCase())) {
+      seen.add(text.toLowerCase());
+      facts.push({ label: 'Notiz', text, type: 'note' });
+    }
+  });
+
+  return facts;
+}
+function serverUrl() { return defaultServerUrl().replace(/\/$/, ''); }
+function authHeaders() { return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken }; }
+function isLocalHost() {
+  const host = location.hostname || '';
+  return host === 'localhost' || host === '127.0.0.1';
+}
+function buildApiBases() {
+  const primary = serverUrl();
+  return [primary];
+}
+async function parseJsonSafe(res) {
+  const raw = await res.text();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    throw new Error('Antwort vom Server ist kein gueltiges JSON.');
+  }
+}
+async function fetchApi(path, init) {
+  const bases = buildApiBases();
+  let lastError = null;
+  for (let i = 0; i < bases.length; i += 1) {
+    const base = bases[i];
+    try {
+      const res = await fetch(base + path, init);
+      const mustFallback = isLocalHost() && i === 0 && (res.status === 404 || res.status === 405);
+      if (mustFallback) continue;
+      const data = await parseJsonSafe(res);
+      return { res, data };
+    } catch (error) {
+      lastError = error;
+      const hasFallback = i < bases.length - 1;
+      if (!hasFallback) throw error;
+    }
+  }
+  throw lastError || new Error('API nicht erreichbar.');
+}
+function escHtml(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function fmtTime(iso) { if (!iso) return '-'; return new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+function isToday(iso) { if (!iso) return false; const a = new Date(iso); const b = new Date(); return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+function isThisWeek(iso) {
+  if (!iso) return false;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  const day = (now.getDay() + 6) % 7;
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(now.getDate() - day);
+  return date >= start;
+}
+function formatMoney(value) { return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(Math.max(0, Math.round(value || 0))); }
+function formatRange(range) { return formatMoney(range.min) + ' € – ' + formatMoney(range.max) + ' €'; }
+function mergeRanges(items) {
+  return items.reduce((acc, item) => ({ min: acc.min + item.value.min, max: acc.max + item.value.max }), { min: 0, max: 0 });
+}
+function callKey(call) {
+  return String(call.call_id || call.callId || call.id || [call.createdAt, call.phoneNumber || call.to_number || call.toNumber || '', call.summary || ''].join('|'));
+}
+function loadCompletedTasks() {
+  try {
+    return JSON.parse(localStorage.getItem('tawano_completed_tasks') || '{}') || {};
+  } catch (_) {
+    return {};
+  }
+}
+function persistCompletedTasks() {
+  localStorage.setItem('tawano_completed_tasks', JSON.stringify(completedTasks));
+}
+function isTaskMarkedDone(call) {
+  return Boolean(completedTasks[callKey(call)]);
+}
+function whatsappNumber(phone) {
+  return String(phone || '').replace(/[^\d]/g, '');
+}
+function normalizePhoneDe(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  let cleaned = raw.replace(/[\s\-()/.]/g, '');
+  if (cleaned.startsWith('00')) cleaned = '+' + cleaned.slice(2);
+  if (cleaned.startsWith('+')) return /^\+[1-9]\d{7,14}$/.test(cleaned) ? cleaned : '';
+  if (cleaned.startsWith('0')) cleaned = '+49' + cleaned.slice(1);
+  else if (!cleaned.startsWith('49')) cleaned = '+49' + cleaned;
+  else cleaned = '+' + cleaned;
+  return /^\+[1-9]\d{7,14}$/.test(cleaned) ? cleaned : '';
+}
+function toGermanCallError(message) {
+  const txt = String(message || '');
+  const lower = txt.toLowerCase();
+  if (lower.includes('e.164') || lower.includes('valid number')) {
+    return 'Telefonnummer ungueltig. Bitte im internationalen Format eingeben, z. B. +491631283971.';
+  }
+  return txt;
+}
+
+function setStatus(state, text) {
+  const pill = document.getElementById('status-pill');
+  pill.className = 'status' + (state ? ' ' + state : '');
+  document.getElementById('status-text').textContent = text;
+}
+function setAuthInfo(text, type) {
+  const el = document.getElementById('auth-info');
+  el.className = 'auth-info' + (type ? ' ' + type : '');
+  el.textContent = text;
+}
+function showMsg(text, type) {
+  const el = document.getElementById('call-msg');
+  el.className = 'message ' + type;
+  el.textContent = text;
+}
+function showDashboard() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('dashboard-screen').classList.remove('hidden');
+  document.getElementById('user-email').textContent = currentUser && currentUser.email ? currentUser.email : '';
+}
+function showLogin() {
+  document.getElementById('dashboard-screen').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+
+function isAgentCall(call) {
+  const requested = String(call.requestedAgentId || '');
+  const resolved = String(call.resolvedAgentId || '');
+  const direct = String(call.agent_id || call.agentId || '');
+  return requested === AGENT_ALIAS || requested === AGENT_ID || resolved === AGENT_ID || direct === AGENT_ID;
+}
+function customerLabel(call) {
+  const name = String(call.customerName || call.name || '').trim();
+  if (name) return name;
+  const phone = String(call.phoneNumber || call.toNumber || call.to_number || '').trim();
+  if (phone) return 'Kundin ' + phone;
+  return 'Neue Anfrage';
+}
+function fullSummaryText(call) {
+  const analysis = call.callAnalysis || call.call_analysis || {};
+  const custom = analysis.custom_analysis_data || {};
+  const parts = [
+    custom.summary,
+    custom.reason,
+    custom.intent,
+    analysis.call_summary,
+    analysis.summary,
+    call.summary,
+    call.disconnectionReason,
+    call.disconnection_reason,
+  ];
+  return parts.filter(Boolean).join(' | ').toLowerCase();
+}
+function englishSummaryDetected(text) {
+  const t = String(text || '').toLowerCase();
+  if (!t) return false;
+  return /\b(the|agent|user|call|conversation|greeting|hang up|hung up|almost immediately|ending)\b/.test(t);
+}
+function summaryFor(call) {
+  const analysis = call.callAnalysis || call.call_analysis || {};
+  const custom = analysis.custom_analysis_data || {};
+  const directSummary = String(custom.summary || analysis.call_summary || analysis.summary || call.summary || '').trim();
+  if (directSummary && !englishSummaryDetected(directSummary)) {
+    return directSummary.length > 220 ? (directSummary.slice(0, 217) + '...') : directSummary;
+  }
+  const raw = fullSummaryText(call);
+  const reason = String(call.disconnectionReason || call.disconnection_reason || '').toLowerCase();
+  if (raw.includes('mailbox') || reason.includes('voicemail')) return 'Der Kunde war nicht erreichbar und braucht einen Rückruf.';
+  if (raw.includes('rueckruf') || raw.includes('zurueckruf') || raw.includes('callback')) return 'Der Kunde möchte zurückgerufen werden.';
+  if (raw.includes('transfer') || raw.includes('weiter') || raw.includes('staff member')) return 'Das Gespräch sollte weitergeleitet werden.';
+  if (raw.includes('appointment') || raw.includes('book') || raw.includes('termin')) return 'Der Kunde wollte einen Termin vereinbaren.';
+  if (raw.includes('preis') || raw.includes('kosten') || raw.includes('angebot') || raw.includes('price')) return 'Der Kunde hatte eine Frage zu Preis oder Angebot.';
+  if (raw.includes('beschwerde') || raw.includes('problem') || raw.includes('fehler') || raw.includes('technical error')) return 'Es gab ein Problem im Gespräch und Nachfassen ist sinnvoll.';
+  if (raw.includes('aufgelegt') || raw.includes('hang up') || raw.includes('hung up')) return 'Das Gespräch wurde schnell beendet.';
+  return 'Das Gespräch wurde kurz zusammengefasst.';
+}
+function callFlags(call) {
+  const txt = fullSummaryText(call);
+  const status = String(call.status || call.retellStatus || '').toLowerCase();
+  const reason = String(call.disconnectionReason || call.disconnection_reason || '').toLowerCase();
+  const transfer = txt.includes('transfer') || txt.includes('weiter') || reason.includes('transfer');
+  const callback = txt.includes('rueckruf') || txt.includes('zurueckruf') || txt.includes('callback') || txt.includes('mailbox') || reason.includes('voicemail');
+  const problem = status.includes('error') || status.includes('network') || txt.includes('beschwerde') || txt.includes('problem') || txt.includes('fehler') || txt.includes('nicht erreicht');
+  return { transfer, callback, problem };
+}
+function classifyCall(call) {
+  if (isTaskMarkedDone(call)) return { key:'done', label:'Erledigt', badge:'done', next:'Bereits erledigt' };
+  const status = String(call.status || call.retellStatus || '').toLowerCase();
+  const reason = String(call.disconnectionReason || call.disconnection_reason || '').toLowerCase();
+  const text = summaryFor(call).toLowerCase();
+  if (['ongoing','in-progress','starting','registered'].includes(status)) return { key:'callback', label:'Live', badge:'live', next:'Läuft gerade' };
+  if (status.includes('error') || status.includes('network') || text.includes('problem')) return { key:'problem', label:'Problemfall', badge:'problem', next:'Sofort prüfen' };
+  if (text.includes('weitergeleitet') || text.includes('weitergeleitet werden') || reason.includes('transfer')) return { key:'transfer', label:'Weiterleitung', badge:'transfer', next:'An Mitarbeiter weiterleiten' };
+  if (text.includes('mailbox') || text.includes('rückruf') || text.includes('zurück')) return { key:'callback', label:'Rückruf', badge:'callback', next:'Heute zurückrufen' };
+  return { key:'done', label:'Erledigt', badge:'done', next:'Nichts mehr tun' };
+}
+function topicFromCall(call) {
+  const txt = fullSummaryText(call);
+  if (txt.includes('termin') || txt.includes('buchung') || txt.includes('appointment') || txt.includes('book')) return 'Termine';
+  if (txt.includes('preis') || txt.includes('kosten') || txt.includes('angebot') || txt.includes('price')) return 'Preise';
+  if (txt.includes('oeffnungszeit') || txt.includes('adresse') || txt.includes('standort') || txt.includes('hours')) return 'Öffnungszeiten';
+  if (txt.includes('weiter') || txt.includes('transfer')) return 'Weiterleitung';
+  if (txt.includes('rueckruf') || txt.includes('zurueckruf') || txt.includes('callback')) return 'Rückruf';
+  if (txt.includes('beschwerde') || txt.includes('problem') || txt.includes('fehler')) return 'Problem';
+  return 'Sonstiges';
+}
+function issueFromCall(call) {
+  const txt = fullSummaryText(call);
+  const status = String(call.status || call.retellStatus || '').toLowerCase();
+  const reason = String(call.disconnectionReason || call.disconnection_reason || '').toLowerCase();
+  if (status.includes('error') || status.includes('network')) return 'Technikfehler';
+  if (txt.includes('mailbox') || reason.includes('voicemail')) return 'Mailbox/kein Kontakt';
+  if (txt.includes('beschwerde') || txt.includes('unzufrieden')) return 'Kundenbeschwerde';
+  if (txt.includes('nicht erreicht') || txt.includes('keine antwort')) return 'Kunde nicht erreicht';
+  return 'Kein Problem';
+}
+function topEntries(mapObj, limit) {
+  return Object.entries(mapObj).sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
+function valueRangeForCall(call) {
+  const topic = topicFromCall(call);
+  const info = classifyCall(call);
+  if (topic === 'Termine') return { min: 120, max: 120 };
+  if (topic === 'Preise') return { min: 120, max: 120 };
+  if (topic === 'Weiterleitung') return { min: 120, max: 120 };
+  if (topic === 'Rückruf') return { min: 120, max: 120 };
+  if (topic === 'Öffnungszeiten') return { min: 60, max: 120 };
+  if (info.key === 'problem') return { min: 0, max: 40 };
+  return { min: 80, max: 120 };
+}
+function priorityForItem(info) {
+  if (info.key === 'problem') return { label: 'Hoch', className: 'high', rank: 0 };
+  if (info.key === 'callback') return { label: 'Hoch', className: 'high', rank: 1 };
+  if (info.key === 'transfer') return { label: 'Mittel', className: 'medium', rank: 2 };
+  return { label: 'Niedrig', className: 'low', rank: 3 };
+}
+function concernForCall(call, info) {
+  if (info.key === 'problem') return issueFromCall(call);
+  if (info.key === 'callback') return 'Rückruf';
+  if (info.key === 'transfer') return 'Weiterleitung';
+  return summaryFor(call);
+}
+function buildItemModel(call) {
+  const info = classifyCall(call);
+  const priority = priorityForItem(info);
+  const nextStep = nextStepForCall(call, info);
+  return {
+    call,
+    key: callKey(call),
+    info,
+    priority,
+    concern: concernForCall(call, info),
+    summary: summaryFor(call),
+    nextStep,
+    value: valueRangeForCall(call),
+    phone: String(call.phoneNumber || call.to_number || call.toNumber || '').trim(),
+    customer: customerLabel(call),
+    createdAt: call.createdAt || call.updatedAt || null,
+  };
+}
+function sortItems(items) {
+  return items.slice().sort((a, b) => {
+    if (a.priority.rank !== b.priority.rank) return a.priority.rank - b.priority.rank;
+    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+  });
+}
+function recommendationText(todayItems, topicCounts) {
+  if (!todayItems.length) return 'Noch keine Empfehlung. Sobald Gespräche eingehen, erscheint hier der wichtigste Verbesserungsschritt.';
+  const problems = todayItems.filter((item) => item.info.key === 'problem').length;
+  const callbacks = todayItems.filter((item) => item.info.key === 'callback').length;
+  const topTopic = topEntries(topicCounts, 1)[0];
+  if (problems >= 2) return 'Heute gab es mehrere Problemfälle. Prüfe diese Gespräche zuerst und verbessere die Stellen, an denen der Agent hängen bleibt.';
+  if (topTopic && topTopic[0] === 'Öffnungszeiten') return 'Viele Kunden fragen nach Öffnungszeiten oder Adresse. Ergänze diese Infos klar im Agenten-Wissen.';
+  if (topTopic && topTopic[0] === 'Preise') return 'Viele Kunden fragen nach Preisen. Ergänze Preisspannen oder Standardangebote im Agenten-Wissen.';
+  if (callbacks >= 2) return 'Heute wollten mehrere Kunden zurückgerufen werden. Prüfe, ob der Agent öfter direkt Termine buchen oder sicherer weiterleiten sollte.';
+  return 'Das Gesprächsmuster ist stabil. Beobachte weiter, welche Fragen häufig wiederkommen, und ergänze diese im Agenten-Wissen.';
+}
+function renderInsights(todayItems) {
+  const topicCounts = {};
+  todayItems.forEach((item) => {
+    topicCounts[topicFromCall(item.call)] = (topicCounts[topicFromCall(item.call)] || 0) + 1;
+  });
+  const total = Math.max(1, todayItems.length);
+  const callbacks = todayItems.filter((item) => item.info.key === 'callback').length;
+  const urgent = todayItems.filter((item) => item.info.key === 'problem').length;
+  const topTopic = topEntries(topicCounts, 1)[0];
+  const summary = !todayItems.length
+    ? 'Heute gibt es noch keine Gespräche. Sobald Anrufe eingehen, erscheint hier eine klare Tagesauswertung.'
+    : 'Heute wollten die meisten Kunden ' + escHtml((topTopic && topTopic[0].toLowerCase()) || 'Hilfe') + '. '
+      + (urgent ? urgent + ' Gespräche waren dringend. ' : 'Es gab keine kritischen Gespräche. ')
+      + (callbacks ? callbacks + ' Kunden brauchen einen Rückruf.' : 'Es ist kein Rückruf offen.');
+  document.getElementById('ai-summary').innerHTML = summary;
+
+  const topicWrap = document.getElementById('ai-topics');
+  const entries = topEntries(topicCounts, 4);
+  topicWrap.innerHTML = entries.length
+    ? entries.map(([name, count]) => '<div class="insight-item"><strong>' + escHtml(name) + '</strong><span>' + escHtml(Math.round((count / total) * 100)) + ' %</span></div>').join('')
+    : '<div class="empty">Noch keine Werte.</div>';
+
+  document.getElementById('ai-recommendation').textContent = recommendationText(todayItems, topicCounts);
+}
+function renderWeek(items) {
+  const weekItems = items.filter((item) => isThisWeek(item.createdAt));
+  const callers = new Set(weekItems.map((item) => item.phone).filter(Boolean));
+  const weekValue = mergeRanges(weekItems);
+  const weekGrid = document.getElementById('week-grid');
+  const data = [
+    { label: 'Anrufe angenommen', value: String(weekItems.length), copy: 'Alle Anrufe dieser Woche.' },
+    { label: 'Rückrufe erzeugt', value: String(weekItems.filter((item) => item.info.key === 'callback').length), copy: 'Kunden, die du noch zurückrufen solltest.' },
+    { label: 'Potenzielle Neukunden', value: String(callers.size), copy: 'Eindeutige Kontakte in dieser Woche.' },
+    { label: 'Problemfälle', value: String(weekItems.filter((item) => item.info.key === 'problem').length), copy: 'Gespräche mit Risiko oder Unklarheit.' },
+    { label: 'Umsatzwert', value: formatRange(weekValue), copy: 'Geschätzter Wert aus allen Wochenanrufen.' },
+  ];
+  weekGrid.innerHTML = data.map((item) => '<div class="week-item"><span>' + escHtml(item.label) + '</span><strong>' + escHtml(item.value) + '</strong><p>' + escHtml(item.copy) + '</p></div>').join('');
+}
+
+async function resetDashboardData() {
+  if (!authToken) { setStatus('err', 'Bitte einloggen'); return; }
+  const ok = window.confirm('Alle bisherigen Dashboard-Daten ausblenden und bei Null starten?');
+  if (!ok) return;
+  setStatus('', 'Reset laeuft...');
+  try {
+    let res = await fetch(serverUrl() + '/api/debug/reset', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ reason: 'customer_clean_restart' }),
+    });
+    if (res.status === 404) {
+      res = await fetch(serverUrl() + '/.netlify/functions/debug-reset', {
+        method: 'POST',
+        headers: authHeaders(),
+      });
+    }
+    if (!res.ok) throw new Error('Reset fehlgeschlagen');
+    calls = [];
+    render();
+    setStatus('ok', 'Reset fertig');
+  } catch (error) {
+    setStatus('err', 'Reset fehlgeschlagen');
+  }
+}
+
+async function loginWithPassword() {
+  const email = (document.getElementById('login-email').value || '').trim();
+  const password = document.getElementById('login-password').value || '';
+  if (!email || !password) { setAuthInfo('Bitte E-Mail und Passwort eingeben.', 'err'); return; }
+  setAuthInfo('Login wird geprueft...', '');
+  try {
+    const result = await fetchApi('/api/client-auth/login', {
+      method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password })
+    });
+    const res = result.res;
+    const data = result.data;
+    if (!res.ok || !data.ok || !data.accessToken) throw new Error(data.message || 'Login fehlgeschlagen');
+    authToken = data.accessToken;
+    currentUser = data.user || { email };
+    localStorage.setItem('tawano_access_token', authToken);
+    localStorage.setItem('tawano_user', JSON.stringify(currentUser));
+    setAuthInfo('Eingeloggt.', 'ok');
+    showDashboard();
+    refreshCalls();
+  } catch (error) {
+    setAuthInfo('Login fehlgeschlagen: ' + String(error.message || error), 'err');
+  }
+}
+
+function logout() {
+  authToken = '';
+  currentUser = null;
+  calls = [];
+  localStorage.removeItem('tawano_access_token');
+  localStorage.removeItem('tawano_user');
+  showLogin();
+}
+
+async function startTestCall() {
+  if (!authToken) { showMsg('Bitte zuerst einloggen.', 'err'); return; }
+  const inputPhone = (document.getElementById('phone').value || '').trim();
+  if (!inputPhone) { showMsg('Bitte Telefonnummer eingeben.', 'err'); return; }
+  const phone = normalizePhoneDe(inputPhone);
+  if (!phone) { showMsg('Bitte gueltige Nummer eingeben, z. B. +491631283971.', 'err'); return; }
+  document.getElementById('phone').value = phone;
+  showMsg('Test-Call wird gestartet...', 'ok');
+  try {
+    const result = await fetchApi('/api/call', {
+      method:'POST', headers:authHeaders(), body:JSON.stringify({ agentId: AGENT_ALIAS, phoneNumber: phone })
+    });
+    const res = result.res;
+    const data = result.data;
+    if (!res.ok || !data.ok) throw new Error(data.message || 'Test-Call konnte nicht gestartet werden');
+    showMsg('Test-Call gestartet.', 'ok');
+    refreshCalls();
+  } catch (error) {
+    showMsg('Fehler: ' + toGermanCallError(error.message), 'err');
+  }
+}
+
+async function refreshCalls() {
+  if (!authToken) return;
+  setStatus('', 'Aktualisiert...');
+  try {
+    let res;
+    let data;
+    try {
+      const result = await fetchApi('/api/debug/calls', { cache:'no-store', headers:authHeaders() });
+      res = result.res;
+      data = result.data;
+    } catch (_) {
+      const fallback = await fetchApi('/.netlify/functions/debug-calls', { cache:'no-store', headers:authHeaders() });
+      res = fallback.res;
+      data = fallback.data;
+    }
+    if (res.status === 401 || res.status === 403) { setStatus('err', 'Login abgelaufen'); logout(); return; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    calls = (Array.isArray(data.calls) ? data.calls : []).filter(isAgentCall);
+    render();
+    setStatus('ok', 'Live');
+  } catch (error) {
+    setStatus('err', 'Offline');
+    console.error(error);
+  }
+}
+
+function setFilter(filter) {
+  activeFilter = filter;
+  showAllCalls = false;
+  ['all','callback','transfer','done'].forEach((name) => {
+    const el = document.getElementById('filter-' + name);
+    if (el) el.classList.toggle('active', name === filter);
+  });
+  const items = sortItems(calls.slice(0, 220).map(buildItemModel));
+  renderList(items);
+}
+
+function render() {
+  const items = sortItems(calls.slice(0, 220).map(buildItemModel));
+  const todayItems = items.filter((item) => isToday(item.createdAt));
+  const openItems = items.filter((item) => item.info.key !== 'done');
+  const todayCallbacks = todayItems.filter((item) => item.info.key === 'callback').length;
+  const todayProblems = todayItems.filter((item) => item.info.key === 'problem').length;
+  const todayValue = todayItems.length * 120;
+
+  document.getElementById('k-open').textContent = String(openItems.length);
+  document.getElementById('k-saved').textContent = String(todayItems.length);
+  document.getElementById('k-value').textContent = formatMoney(todayValue) + ' €';
+  document.getElementById('k-problem').textContent = String(todayProblems);
+  document.getElementById('k-open-copy').textContent = openItems.length ? 'Starte mit den roten und orangenen Aufgaben.' : 'Im Moment ist nichts offen.';
+
+  document.getElementById('hero-summary').textContent = 'Heute wurden ' + todayItems.length + ' Anrufe angenommen. ' + todayCallbacks + ' Kunden brauchen Rückruf. Geschätzter Umsatzwert: ' + formatMoney(todayValue) + ' €.';
+  document.getElementById('hero-note').textContent = openItems.length
+    ? 'Starte mit Problemfällen, dann Rückrufen und danach Weiterleitungen.'
+    : 'Heute ist aktuell nichts offen. Nutze die Detailanalyse der Anrufe für Verbesserungen.';
+
+  document.getElementById('login-open').textContent = String(openItems.length);
+  document.getElementById('login-done').textContent = String(items.filter((item) => item.info.key === 'done').length);
+  document.getElementById('login-today').textContent = String(todayItems.length);
+
+  renderInsights(todayItems);
+  renderList(items);
+}
+
+function toggleShowAllCalls() {
+  showAllCalls = !showAllCalls;
+  const items = sortItems(calls.slice(0, 220).map(buildItemModel));
+  renderList(items);
+}
+
+function renderList(items) {
+  const list = document.getElementById('call-list');
+  const moreBtn = document.getElementById('more-calls-btn');
+  const filtered = items
+    .filter((item) => activeFilter === 'all' || activeFilter === item.info.key || (activeFilter === 'callback' && item.info.key === 'problem'));
+  const visibleItems = showAllCalls ? filtered : filtered.slice(0, DEFAULT_VISIBLE_CALLS);
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty">Keine passenden Anrufe.</div>';
+    if (moreBtn) moreBtn.classList.add('hidden');
+    return;
+  }
+
+  if (moreBtn) {
+    if (filtered.length <= DEFAULT_VISIBLE_CALLS) {
+      moreBtn.classList.add('hidden');
+    } else {
+      moreBtn.classList.remove('hidden');
+      moreBtn.textContent = showAllCalls ? 'Weniger anzeigen' : ('Mehr Anrufe zeigen (' + (filtered.length - DEFAULT_VISIBLE_CALLS) + ')');
+    }
+  }
+
+  list.innerHTML = visibleItems.map((item) => {
+    const callIdx = calls.indexOf(item.call);
+    const hasPhone = Boolean(item.phone);
+    const isDone = item.info.key === 'done';
+    return '<div class="row" onclick="openDetail(' + callIdx + ')" role="button" tabindex="0">'
+      + '<div class="task-main">'
+        + '<div class="task-head">'
+          + '<span class="priority ' + escHtml(item.priority.className) + '">' + escHtml(item.priority.label) + '</span>'
+          + '<span class="badge ' + escHtml(item.info.badge) + '">' + escHtml(item.info.label) + '</span>'
+        + '</div>'
+        + '<div class="maintext"><strong>' + escHtml(item.customer) + '</strong></div>'
+        + '<div class="task-meta">'
+          + '<div><em>Kunde</em><b>' + escHtml(item.customer) + '</b></div>'
+          + '<div class="meta-anliegen"><em>Anliegen</em><b>' + escHtml(item.concern) + '</b></div>'
+          + '<div><em>Nächster Schritt</em><b>' + escHtml(item.nextStep) + '</b></div>'
+        + '</div>'
+        + '<div class="task-footer"><div class="next"><small>' + escHtml(fmtTime(item.createdAt)) + '</small></div></div>'
+        + '<div class="task-actions">'
+          + '<button class="btn-mini primary" ' + (hasPhone ? '' : 'disabled ') + 'onclick="event.stopPropagation(); contactCustomer(\'call\',' + callIdx + ')">Anrufen</button>'
+          + '<button class="btn-mini" ' + (hasPhone ? '' : 'disabled ') + 'onclick="event.stopPropagation(); contactCustomer(\'whatsapp\',' + callIdx + ')">WhatsApp</button>'
+          + '<button class="btn-mini" onclick="event.stopPropagation(); forwardTask(' + callIdx + ')">Weiterleiten</button>'
+          + (isDone
+            ? '<button class="btn-mini done finish-only" onclick="event.stopPropagation(); markTaskDone(' + callIdx + ')" aria-label="Anruf fertig">✔</button>'
+            : '<button class="btn-mini done finish-pill" onclick="event.stopPropagation(); markTaskDone(' + callIdx + ')">✔ Anruf fertig</button>')
+        + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function contactCustomer(kind, callIdx) {
+  const call = calls[callIdx];
+  if (!call) return;
+  const phone = String(call.phoneNumber || call.to_number || call.toNumber || '').trim();
+  if (!phone) return;
+  if (kind === 'call') {
+    window.open('tel:' + phone, '_self');
+    return;
+  }
+  if (kind === 'whatsapp') {
+    window.open('https://wa.me/' + whatsappNumber(phone), '_blank');
+  }
+}
+function forwardTask(callIdx) {
+  const call = calls[callIdx];
+  if (!call) return;
+  const info = classifyCall(call);
+  const note = customerLabel(call) + ' | ' + summaryFor(call) + ' | Nächster Schritt: ' + nextStepForCall(call, info);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(note).then(() => setStatus('ok', 'Notiz zum Weiterleiten kopiert')).catch(() => {});
+  }
+  openDetail(callIdx);
+}
+function markTaskDone(callIdx) {
+  const call = calls[callIdx];
+  if (!call) return;
+  completedTasks[callKey(call)] = true;
+  persistCompletedTasks();
+  render();
+}
+
+function openDetail(callIdx) {
+  const call = calls[callIdx];
+  if (!call) return;
+  const info = classifyCall(call);
+  const analysis = call.callAnalysis || call.call_analysis || {};
+  const custom = analysis.custom_analysis_data || {};
+  const reason = String(call.disconnectionReason || call.disconnection_reason || '').trim();
+  const phone = String(call.phoneNumber || call.to_number || call.toNumber || '').trim();
+  const customerName = String(call.customerName || call.name || '').trim();
+  const fullSummary = summaryFor(call);
+  const facts = detailFactsFor(call);
+
+  document.getElementById('detail-title').textContent = customerName || (phone ? 'Kundin ' + phone : 'Anruf-Details');
+
+  const rows = [
+    phone ? '<div class="detail-row"><em>Telefonnummer</em><p>' + escHtml(phone) + '</p></div>' : '',
+    customerName ? '<div class="detail-row"><em>Name</em><p>' + escHtml(customerName) + '</p></div>' : '',
+    '<div class="detail-row"><em>Status</em><p><span class="badge ' + escHtml(info.badge) + '">' + escHtml(info.label) + '</span></p></div>',
+    '<div class="detail-row"><em>Worum es ging</em><p>' + escHtml(fullSummary) + '</p></div>',
+    '<div class="detail-row"><em>Alle wichtigen Infos</em><div class="detail-list">' + (facts.length ? facts.map((fact) => '<div class="detail-list-item ' + escHtml(fact.type || 'note') + '"><strong>' + escHtml(fact.label) + ':</strong> ' + escHtml(fact.text) + '</div>').join('') : '<div class="detail-list-item">Keine weiteren Infos gefunden.</div>') + '</div></div>',
+    '<div class="detail-row"><em>Zeitpunkt</em><p>' + escHtml(fmtTime(call.createdAt)) + '</p></div>',
+  ];
+  document.getElementById('detail-body').innerHTML = rows.filter(Boolean).join('');
+  document.getElementById('call-detail-overlay').classList.remove('hidden');
+}
+
+function closeDetail(event) {
+  if (event && event.target !== document.getElementById('call-detail-overlay')) return;
+  document.getElementById('call-detail-overlay').classList.add('hidden');
+}
+
+if (authToken) {
+  showDashboard();
+  refreshCalls();
+} else {
+  showLogin();
+}
+if (timer) clearInterval(timer);
+timer = setInterval(refreshCalls, 15000);
+</script>
+</body>
+</html>
