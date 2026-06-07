@@ -308,7 +308,7 @@ function extractDetailLines(text) {
     const line = String(lines[i] || '').trim();
     if (!line) continue;
     const lower = line.toLowerCase();
-    if (lower.startsWith('details:') || lower.startsWith('detail:')) {
+    if (lower.startsWith('details:') || lower.startsWith('detail:') || lower.startsWith('stichpunkte:') || lower.startsWith('notiz:') || lower.startsWith('notizen:')) {
       inDetails = true;
       const rest = line.slice(line.indexOf(':') + 1).trim();
       if (rest) out.push(rest);
@@ -323,12 +323,47 @@ function extractDetailLines(text) {
   return out;
 }
 function callbackInstructionFromText(text) {
-  const lower = String(text || '').toLowerCase();
-  const hhmm = lower.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
-  if (hhmm) return 'Heute um ' + hhmm[1] + ':' + hhmm[2] + ' zurückrufen';
-  const hour = lower.match(/\b([01]?\d|2[0-3])\s*(uhr|h|hr)\b/);
-  if (hour) return 'Heute um ' + hour[1] + ' Uhr zurückrufen';
-  if (lower.includes('so schnell wie möglich') || lower.includes('schnellstmöglich') || lower.includes('asap') || lower.includes('dringend')) return 'So schnell wie möglich zurückrufen';
+  const s = String(text || '').trim();
+  const lower = s.toLowerCase();
+  // 24h with minutes: 14:30 or 14.30
+  let m = lower.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
+  if (m) {
+    const hh = String(m[1]).padStart(2, '0');
+    const mm = String(m[2]).padStart(2, '0');
+    return 'Heute um ' + hh + ':' + mm + ' zurückrufen';
+  }
+  // 12h with am/pm (e.g. "at 2 pm", "2:30pm")
+  m = lower.match(/\b(?:at\s*)?([1-9]|1[0-2])(?::([0-5]\d))?\s*(am|pm)\b/);
+  if (m) {
+    let hour = parseInt(m[1], 10);
+    const min = m[2] ? m[2] : '00';
+    const ampm = m[3];
+    if (ampm === 'pm' && hour < 12) hour += 12;
+    if (ampm === 'am' && hour === 12) hour = 0;
+    const hh = String(hour).padStart(2, '0');
+    const mm = String(min).padStart(2, '0');
+    return 'Heute um ' + hh + ':' + mm + ' zurückrufen';
+  }
+  // english "at 14" or german "um 14"
+  m = lower.match(/\b(?:at|um)\s*([01]?\d|2[0-3])\b/);
+  if (m) {
+    const hh = String(m[1]).padStart(2, '0');
+    return 'Heute um ' + hh + ':00 zurückrufen';
+  }
+  // german "2 uhr" / similar
+  m = lower.match(/\b([01]?\d|2[0-3])\s*(uhr|h|hr)\b/);
+  if (m) {
+    const hh = String(m[1]).padStart(2, '0');
+    return 'Heute um ' + hh + ':00 zurückrufen';
+  }
+  // ASAP / immediate
+  const asapWords = ['so schnell wie möglich', 'schnellstmöglich', 'asap', 'dringend', 'immediately', 'right away', 'as soon as possible', 'sofort'];
+  if (asapWords.some((w) => lower.includes(w))) {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    return 'So schnell wie möglich zurückrufen (jetzt ' + hh + ':' + mm + ')';
+  }
   return '';
 }
 function nextStepForCall(call, info) {
@@ -405,11 +440,44 @@ function detailFactsFor(call) {
     const text = String(entry || '').trim();
     if (text && !seen.has(text.toLowerCase())) {
       seen.add(text.toLowerCase());
-      facts.push({ label: 'Notiz', text, type: 'note' });
+      // If the source contains a Stichpunkte / bullet list, split into separate detail entries
+      const lower = text.toLowerCase();
+      if (/stichpunkte:/.test(lower) || /^-\s+/.test(text) || /\n-\s+/.test(text)) {
+        // try to find the block after the header
+        let block = text;
+        const idx = lower.indexOf('stichpunkte:');
+        if (idx >= 0) block = text.slice(idx + 'stichpunkte:'.length);
+        const lines = block.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        let count = 1;
+        for (const line of lines) {
+          const m = line.match(/^[-*•]\s*(.*)$/);
+          const content = m ? m[1].trim() : line;
+          if (!content) continue;
+          const key = content.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          facts.push({ label: 'Detail ' + count, text: content, type: 'note' });
+          count += 1;
+        }
+      } else {
+        facts.push({ label: 'Notiz', text, type: 'note' });
+      }
     }
   });
 
-  return facts;
+  // Deduplicate 'Notiz' entries that merely repeat the Kurzfassung or summaryBlock
+  const directSummary = String(summaryBlock || '').trim().toLowerCase();
+  const deduped = [];
+  for (const f of facts) {
+    const txt = String(f.text || '').trim();
+    const low = txt.toLowerCase();
+    if (f.label === 'Notiz' && directSummary && low.includes(directSummary)) continue;
+    // skip very long identical duplicates
+    if (deduped.some((d) => String(d.text || '').trim().toLowerCase() === low)) continue;
+    deduped.push(f);
+  }
+
+  return deduped;
 }
 function serverUrl() { return defaultServerUrl().replace(/\/$/, ''); }
 function authHeaders() { return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + authToken }; }
@@ -565,12 +633,29 @@ function englishSummaryDetected(text) {
   if (!t) return false;
   return /\b(the|agent|user|call|conversation|greeting|hang up|hung up|almost immediately|ending)\b/.test(t);
 }
+function simpleEnglishToGerman(text) {
+  const t = String(text || '').toLowerCase();
+  if (!t) return '';
+  const parts = [];
+  if (t.includes('agent') || t.includes('the agent') || t.includes('agent began') || t.includes('agent introduced')) parts.push('Der Agent stellte sich vor und erklärte das Angebot.');
+  if (t.includes('disconnected by the user') || t.includes('user_hangup') || t.includes('user hangup') || t.includes('hang up') || t.includes('hung up') || t.includes('disconnected')) parts.push('Der Anrufer hat aufgelegt.');
+  if (t.includes('booking') || t.includes('book') || t.includes('booking tool')) parts.push('Problem mit Buchung/Terminvereinbarung.');
+  if (t.includes('mailbox') || t.includes('voicemail')) parts.push('Mailbox erreicht / Rückruf erforderlich.');
+  if (t.includes('callback') || t.includes('call back') || t.includes('call back request')) parts.push('Der Kunde möchte einen Rückruf.');
+  if (t.includes('error') || t.includes('technical') || t.includes('failed')) parts.push('Technisches Problem erkannt.');
+  return parts.join(' ');
+}
 function summaryFor(call) {
   const analysis = call.callAnalysis || call.call_analysis || {};
   const custom = analysis.custom_analysis_data || {};
   const directSummary = String(custom.summary || analysis.call_summary || analysis.summary || call.summary || '').trim();
-  if (directSummary && !englishSummaryDetected(directSummary)) {
-    return directSummary.length > 220 ? (directSummary.slice(0, 217) + '...') : directSummary;
+  if (directSummary) {
+    if (englishSummaryDetected(directSummary)) {
+      const auto = simpleEnglishToGerman(directSummary);
+      if (auto) return auto.length > 220 ? (auto.slice(0, 217) + '...') : auto;
+    } else {
+      return directSummary.length > 220 ? (directSummary.slice(0, 217) + '...') : directSummary;
+    }
   }
   const raw = fullSummaryText(call);
   const reason = String(call.disconnectionReason || call.disconnection_reason || '').toLowerCase();
@@ -755,9 +840,23 @@ async function loginWithPassword() {
   if (!email || !password) { setAuthInfo('Bitte E-Mail und Passwort eingeben.', 'err'); return; }
   setAuthInfo('Login wird geprueft...', '');
   try {
-    const result = await fetchApi('/api/client-auth/login', {
-      method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password })
-    });
+    let result;
+    try {
+      result = await fetchApi('/api/client-auth/login', {
+        method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password })
+      });
+      // if server returned 404/405 HTML page, try direct function path as fallback
+      if (result && result.res && (result.res.status === 404 || result.res.status === 405)) {
+        result = await fetchApi('/.netlify/functions/client-auth-login', {
+          method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password })
+        });
+      }
+    } catch (err) {
+      // try a direct function call as a last resort
+      result = await fetchApi('/.netlify/functions/client-auth-login', {
+        method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ email, password })
+      });
+    }
     const res = result.res;
     const data = result.data;
     if (!res.ok || !data.ok || !data.accessToken) throw new Error(data.message || 'Login fehlgeschlagen');
@@ -957,7 +1056,7 @@ function markTaskDone(callIdx) {
   render();
 }
 
-function openDetail(callIdx) {
+async function openDetail(callIdx) {
   const call = calls[callIdx];
   if (!call) return;
   const info = classifyCall(call);
@@ -966,8 +1065,17 @@ function openDetail(callIdx) {
   const reason = String(call.disconnectionReason || call.disconnection_reason || '').trim();
   const phone = String(call.phoneNumber || call.to_number || call.toNumber || '').trim();
   const customerName = String(call.customerName || call.name || '').trim();
-  const fullSummary = summaryFor(call);
-  const facts = detailFactsFor(call);
+  const summaryBlock = detailSummarySource(call);
+  let fullSummary = summaryFor(call);
+  let facts = detailFactsFor(call);
+
+  // compute explicit callback display and remove duplicate fact if present
+  const parsedNext = extractFieldByLabels(summaryBlock, ['nächster schritt', 'naechster schritt', 'next step']);
+  let callbackText = callbackInstructionFromText([parsedNext, summaryBlock, summaryFor(call)].join(' | '));
+  if (callbackText) {
+    // remove 'Rückrufzeit' fact to avoid duplicate display (we show it separately)
+    facts = facts.filter((f) => String(f.label || '').toLowerCase() !== 'rückrufzeit');
+  }
 
   document.getElementById('detail-title').textContent = customerName || (phone ? 'Kundin ' + phone : 'Anruf-Details');
 
@@ -975,12 +1083,83 @@ function openDetail(callIdx) {
     phone ? '<div class="detail-row"><em>Telefonnummer</em><p>' + escHtml(phone) + '</p></div>' : '',
     customerName ? '<div class="detail-row"><em>Name</em><p>' + escHtml(customerName) + '</p></div>' : '',
     '<div class="detail-row"><em>Status</em><p><span class="badge ' + escHtml(info.badge) + '">' + escHtml(info.label) + '</span></p></div>',
-    '<div class="detail-row"><em>Worum es ging</em><p>' + escHtml(fullSummary) + '</p></div>',
-    '<div class="detail-row"><em>Alle wichtigen Infos</em><div class="detail-list">' + (facts.length ? facts.map((fact) => '<div class="detail-list-item ' + escHtml(fact.type || 'note') + '"><strong>' + escHtml(fact.label) + ':</strong> ' + escHtml(fact.text) + '</div>').join('') : '<div class="detail-list-item">Keine weiteren Infos gefunden.</div>') + '</div></div>',
+    '<div id="detail-summary-row" class="detail-row"><em>Worum es ging</em><p>' + escHtml(fullSummary) + '</p></div>',
+    callbackText ? '<div id="detail-callback-row" class="detail-row"><em>Rückrufzeit</em><p>' + escHtml(callbackText) + '</p></div>' : '',
+    '<div id="detail-facts-row" class="detail-row"><em>Alle wichtigen Infos</em><div class="detail-list">' + (facts.length ? facts.map((fact) => '<div class="detail-list-item ' + escHtml(fact.type || 'note') + '"><strong>' + escHtml(fact.label) + ':</strong> ' + escHtml(fact.text) + '</div>').join('') : '<div class="detail-list-item">Keine weiteren Infos gefunden.</div>') + '</div></div>',
     '<div class="detail-row"><em>Zeitpunkt</em><p>' + escHtml(fmtTime(call.createdAt)) + '</p></div>',
   ];
   document.getElementById('detail-body').innerHTML = rows.filter(Boolean).join('');
   document.getElementById('call-detail-overlay').classList.remove('hidden');
+
+  if (englishSummaryDetected(summaryBlock)) {
+    const summaryEl = document.getElementById('detail-summary-row');
+    if (summaryEl) {
+      const p = summaryEl.querySelector('p');
+      if (p) p.textContent = 'Übersetzung wird geladen...';
+    }
+    try {
+      const tRes = await fetch('/.netlify/functions/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: summaryBlock, target: 'de' }) });
+      const tData = await tRes.json();
+      if (tRes.ok && tData && tData.ok && tData.translated) {
+        const translated = tData.translated;
+        const callCopy = JSON.parse(JSON.stringify(call));
+        if (!callCopy.callAnalysis) callCopy.callAnalysis = {};
+        if (!callCopy.callAnalysis.custom_analysis_data) callCopy.callAnalysis.custom_analysis_data = {};
+        callCopy.callAnalysis.custom_analysis_data.summary = translated;
+        if (!callCopy.call_analysis) callCopy.call_analysis = {};
+        callCopy.call_analysis.call_summary = translated;
+
+        fullSummary = summaryFor(callCopy);
+        facts = detailFactsFor(callCopy);
+
+        const summaryElNew = document.getElementById('detail-summary-row');
+        if (summaryElNew) {
+          const p2 = summaryElNew.querySelector('p');
+          if (p2) p2.textContent = fullSummary;
+        }
+        const factsEl = document.getElementById('detail-facts-row');
+        if (factsEl) {
+          const listWrap = factsEl.querySelector('.detail-list');
+          if (listWrap) listWrap.innerHTML = facts.length ? facts.map((fact) => '<div class="detail-list-item ' + escHtml(fact.type || 'note') + '"><strong>' + escHtml(fact.label) + ':</strong> ' + escHtml(fact.text) + '</div>').join('') : '<div class="detail-list-item">Keine weiteren Infos gefunden.</div>';
+
+          // translate individual note facts if they appear to be English (best-effort)
+          (async () => {
+            try {
+              let changed = false;
+              for (let i = 0; i < facts.length; i += 1) {
+                const fact = facts[i];
+                if (fact && fact.type === 'note' && englishSummaryDetected(fact.text)) {
+                  try {
+                    const tr = await fetch('/.netlify/functions/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: fact.text, target: 'de' }) });
+                    const td = await tr.json();
+                    if (tr.ok && td && td.ok && td.translated) {
+                      facts[i].text = td.translated;
+                      changed = true;
+                    }
+                  } catch (__) {}
+                }
+              }
+              if (changed && listWrap) {
+                listWrap.innerHTML = facts.length ? facts.map((fact) => '<div class="detail-list-item ' + escHtml(fact.type || 'note') + '"><strong>' + escHtml(fact.label) + ':</strong> ' + escHtml(fact.text) + '</div>').join('') : '<div class="detail-list-item">Keine weiteren Infos gefunden.</div>';
+              }
+            } catch (__) {}
+          })();
+        }
+      } else {
+        const summaryElFail = document.getElementById('detail-summary-row');
+        if (summaryElFail) {
+          const p3 = summaryElFail.querySelector('p');
+          if (p3) p3.textContent = fullSummary;
+        }
+      }
+    } catch (err) {
+      const summaryElErr = document.getElementById('detail-summary-row');
+      if (summaryElErr) {
+        const p4 = summaryElErr.querySelector('p');
+        if (p4) p4.textContent = fullSummary;
+      }
+    }
+  }
 }
 
 function closeDetail(event) {

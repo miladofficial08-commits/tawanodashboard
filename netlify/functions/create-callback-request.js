@@ -77,6 +77,104 @@ exports.handler = async (event) => {
     status: 'open',
   };
 
+  // If notes are empty, try to enrich from webhook body fields (call_summary, call_analysis, transcript)
+  try {
+    let sourceText = '';
+    if ((!callbackItem.notes || callbackItem.notes === null || callbackItem.notes === '') && body) {
+      const bodySummary = String(body.call_summary || body.summary || (body.call_analysis && (body.call_analysis.call_summary || body.call_analysis.summary)) || body.transcript || '').trim();
+      if (bodySummary) sourceText = bodySummary;
+    }
+
+    // If still empty, try to use fetched Retell call data (tenantContext.call)
+    if ((!callbackItem.notes || callbackItem.notes === null || callbackItem.notes === '') && !sourceText && tenantContext && tenantContext.call) {
+      const call = tenantContext.call || {};
+      const analysis = call.call_analysis || call.callAnalysis || {};
+      const summary = String(analysis.call_summary || analysis.summary || call.summary || '').trim();
+      const custom = String((analysis.custom_analysis_data && (analysis.custom_analysis_data.summary || analysis.custom_analysis_data.notes)) || '').trim();
+      const rawNotes = String(call.notes || call.transcript || call.public_log || '').trim();
+      sourceText = [summary, custom, rawNotes].filter(Boolean).join('\n\n');
+    }
+
+    if ((!callbackItem.notes || callbackItem.notes === null || callbackItem.notes === '') && sourceText) {
+      const combined = sourceText;
+      if (combined) {
+        // detailed extraction of key points (colors, design, nails, fingers, time, booking issues)
+        function extractKeyPoints(text) {
+          const t = String(text || '');
+          const lower = t.toLowerCase();
+          const pts = [];
+
+          // Booking / appointment
+          if (/booking tool|booking failed|error with the booking|booking tool failed|buchung|booking failed/.test(lower)) pts.push('Problem mit Buchung/Terminvereinbarung.');
+          if (/attempted to schedule a callback for the user at\s*([0-9]{1,2}(?::[0-5][0-9])?\s*(?:am|pm)?)/i.test(lower)) {
+            const m = lower.match(/attempted to schedule a callback for the user at\s*([0-9]{1,2}(?::[0-5][0-9])?\s*(?:am|pm)?)/i);
+            if (m && m[1]) pts.push('Rückrufwunsch: ' + m[1]);
+          }
+
+          // Callback / Rückruf
+          if (/callback|call back|rückruf|zurückrufen/.test(lower) && !/no callback required/.test(lower)) pts.push('Der Kunde möchte einen Rückruf.');
+
+          // Colors
+          const colors = ['pink','rosa','rot','blau','white','weiß','gold','silber','black','schwarz','lila','violett','grün','green','orange'];
+          const foundColors = [];
+          colors.forEach((c) => { if (lower.includes(c) && !foundColors.includes(c)) foundColors.push(c); });
+          if (foundColors.length) pts.push('Farbwunsch: ' + foundColors.join(', '));
+
+          // Design keywords
+          const designKeywords = ['unicorn','einhorn','glitter','glitzer','flower','flowers','floral','star','stars','design'];
+          const foundDesign = [];
+          designKeywords.forEach((k) => { if (lower.includes(k) && !foundDesign.includes(k)) foundDesign.push(k); });
+          if (foundDesign.length) pts.push('Design‑Hinweise: ' + foundDesign.join(', '));
+
+          // Nail length
+          if (/(long nails|lange nägel|lange nägel|lange fingernägel)/.test(lower)) pts.push('Wunsch: Lange Nägel.');
+          else if (/(short nails|kurze nägel|kurz)/.test(lower)) pts.push('Wunsch: Kurze Nägel.');
+
+          // All fingers / both hands
+          if (/(all fingers|alle finger|both hands|beide hände)/.test(lower)) pts.push('An allen Fingern / beide Hände.');
+
+          // Time extraction (HH:MM, 2pm, um 14 Uhr)
+          let m = lower.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
+          if (m) pts.push('Rückrufzeit: Heute um ' + String(m[1]).padStart(2, '0') + ':' + String(m[2]).padStart(2, '0'));
+          else {
+            m = lower.match(/\b(?:at\s*)?([1-9]|1[0-2])(?::([0-5]\d))?\s*(am|pm)\b/);
+            if (m) {
+              let hour = parseInt(m[1], 10);
+              const min = m[2] ? m[2] : '00';
+              const ampm = m[3];
+              if (ampm === 'pm' && hour < 12) hour += 12;
+              if (ampm === 'am' && hour === 12) hour = 0;
+              pts.push('Rückrufzeit: Heute um ' + String(hour).padStart(2, '0') + ':' + String(min).padStart(2, '0'));
+            } else {
+              m = lower.match(/\b(?:um|at)\s*([01]?\d|2[0-3])\b/);
+              if (m) pts.push('Rückrufzeit: Heute um ' + String(m[1]).padStart(2, '0') + ':00');
+            }
+          }
+
+          // Technical errors
+          if (/(error|technical|technische|failed|fehler)/.test(lower)) pts.push('Technisches Problem im Gespräch.');
+
+          // If nothing extracted, but text is long, include first sentence as summary
+          if (!pts.length && t.length) {
+            const first = t.split(/[\.\n]/)[0];
+            if (first && first.length > 20) pts.push(first.trim());
+          }
+
+          return pts.filter(Boolean);
+        }
+
+        const bullets = extractKeyPoints(combined);
+        let finalNotes = combined;
+        if (bullets && bullets.length) {
+          finalNotes = 'Stichpunkte:\n- ' + bullets.join('\n- ') + '\n\n(Original)\n' + combined;
+        }
+        callbackItem.notes = finalNotes;
+      }
+    }
+  } catch (e) {
+    // ignore enrichment errors — proceed with whatever notes we have
+  }
+
   try {
     try {
       await insertRow('callback_requests', {

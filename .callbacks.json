@@ -1,0 +1,15 @@
+[
+  {
+    "type": "callback_request",
+    "id": "cb_g1rq40024u",
+    "phone_number": "+4917612345678",
+    "customer_name": "Max",
+    "reason": "transfer_timeout",
+    "source": "retell_tool",
+    "priority": "normal",
+    "call_id": "call_test_1",
+    "requested_at": "2026-06-05T16:34:15.372Z",
+    "notes": null,
+    "status": "open"
+  }
+]
