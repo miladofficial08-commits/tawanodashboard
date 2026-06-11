@@ -413,9 +413,14 @@ function detailFactsFor(call) {
   const custom = analysis.custom_analysis_data || {};
   const facts = [];
   const seen = new Set();
+  const mainSummary = summaryFor(call);
+
   const push = (label, value, type) => {
-    const text = normalizeVisibleGermanText(value, call);
-    if (!text) return;
+    if (!value) return;
+    const text = String(value).trim();
+    if (!text || text.length < 2) return;
+    // Skip if it's identical to the main summary (already shown as "Worum es ging")
+    if (text === mainSummary) return;
     const key = text.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
@@ -423,54 +428,28 @@ function detailFactsFor(call) {
   };
 
   const summaryBlock = detailSummarySource(call);
-  const parsedAnliegen = extractFieldByLabels(summaryBlock, ['anliegen', 'intent']);
-  const parsedDone = extractFieldByLabels(summaryBlock, ['erledigt', 'done']);
   const parsedNext = extractFieldByLabels(summaryBlock, ['nächster schritt', 'naechster schritt', 'next step']);
-  const parsedDetails = extractDetailLines(summaryBlock);
+  const callbackText = callbackInstructionFromText([parsedNext, summaryBlock, mainSummary].join(' | '));
 
-  const allText = [
-    summaryFor(call),
-    summaryBlock,
-    custom.intent,
-    custom.reason,
-    custom.customer_need,
-    custom.need,
-    custom.problem,
-    custom.issue,
-    custom.request,
-    custom.requested_action,
-    custom.notes,
-    custom.summary_notes,
-    custom.summary,
-    custom.key_points,
-    custom.highlights,
-    analysis.call_summary,
-    analysis.summary,
-    call.notes,
-    call.intent,
-    call.reason,
-    call.request,
-  ].filter(Boolean).map((value) => String(value).trim()).filter(Boolean);
-
-  const callbackText = callbackInstructionFromText([parsedNext, ...parsedDetails, ...allText].join(' | '));
-
-  push('Kurzfassung', summaryFor(call), 'topic');
-  push('Anliegen', parsedAnliegen || custom.intent || custom.reason || call.intent || call.reason, 'topic');
-  parsedDetails.forEach((item, idx) => push('Detail ' + (idx + 1), item, 'note'));
-  push('Erledigt', parsedDone, 'done');
+  // Show every real field from Retell directly — no keyword replacement
+  push('Anliegen', custom.intent || custom.reason || call.intent || call.reason, 'topic');
   push('Kunde will', custom.customer_need || custom.need || call.customer_need, 'topic');
   push('Problem', custom.problem || custom.issue || call.problem, 'risk');
   push('Wunsch', custom.request || custom.requested_action || call.request, 'topic');
-  push('Wichtige Infos', custom.notes || custom.summary_notes || call.notes, 'note');
-  push('Nächster Schritt', parsedNext || nextStepForCall(call, classifyCall(call)), 'action');
-  push('Stimmung', analysis.user_sentiment || custom.sentiment || call.sentiment, 'topic');
-  push('Beendigungsgrund', mapDisconnectionReason(call.disconnectionReason || call.disconnection_reason), 'risk');
+  push('Wichtige Infos', custom.notes || custom.summary_notes || custom.key_points || custom.highlights || call.notes, 'note');
+  push('Nächster Schritt', custom.next_step || custom.nextStep || parsedNext || classifyCall(call).next, 'action');
   push('Rückrufzeit', callbackText, 'action');
+  push('Stimmung', germanSentimentText(analysis.user_sentiment || custom.sentiment || call.sentiment), 'topic');
+  push('Beendigungsgrund', mapDisconnectionReason(call.disconnectionReason || call.disconnection_reason), 'risk');
 
-  const hasStructuredBlock = Boolean(parsedAnliegen || parsedDone || parsedNext || parsedDetails.length);
-  const extraSource = hasStructuredBlock ? [] : allText;
-
-  extraSource.forEach((entry) => push('Notiz', entry, 'note'));
+  // Show any extra fields Retell returned that we don't explicitly handle
+  Object.keys(custom).forEach((key) => {
+    if (['summary', 'note', 'notes', 'sentiment', 'next_step', 'nextStep', 'intent', 'reason',
+         'customer_need', 'need', 'problem', 'issue', 'request', 'requested_action',
+         'summary_notes', 'key_points', 'highlights'].includes(key)) return;
+    const val = custom[key];
+    if (val && typeof val === 'string') push(key.replace(/_/g, ' '), val, 'note');
+  });
 
   return facts;
 }
@@ -636,22 +615,17 @@ function englishSummaryDetected(text) {
 function summaryFor(call) {
   const analysis = call.callAnalysis || call.call_analysis || {};
   const custom = analysis.custom_analysis_data || {};
+  // Always show the real summary from Retell — English or German, whatever it is
   const directSummary = String(custom.summary || analysis.call_summary || analysis.summary || call.summary || '').trim();
-  if (directSummary && !englishSummaryDetected(directSummary)) {
-    return directSummary.length > 220 ? (directSummary.slice(0, 217) + '...') : directSummary;
+  if (directSummary && directSummary.length > 5) {
+    return directSummary;
   }
-  const raw = fullSummaryText(call);
+  // Fallback only when truly no summary exists
   const reason = String(call.disconnectionReason || call.disconnection_reason || '').toLowerCase();
-  if (raw.includes('mailbox') || reason.includes('voicemail')) return 'Der Kunde war nicht erreichbar und braucht einen Rückruf.';
-  if (raw.includes('rueckruf') || raw.includes('zurueckruf') || raw.includes('callback')) return 'Der Kunde möchte zurückgerufen werden.';
-  if (raw.includes('nail') || raw.includes('nagel') || raw.includes('design') || raw.includes('beauty service') || raw.includes('available services')) return 'Der Kunde hat nach Nageldesigns oder Beauty-Services gefragt.';
-  if (raw.includes('booking tool') || raw.includes('schedule')) return 'Termin oder Buchung sollte geklärt werden.';
-  if (raw.includes('transfer') || raw.includes('weiter') || raw.includes('staff member')) return 'Das Gespräch sollte weitergeleitet werden.';
-  if (raw.includes('appointment') || raw.includes('book') || raw.includes('termin')) return 'Der Kunde wollte einen Termin vereinbaren.';
-  if (raw.includes('preis') || raw.includes('kosten') || raw.includes('angebot') || raw.includes('price')) return 'Der Kunde hatte eine Frage zu Preis oder Angebot.';
-  if (raw.includes('beschwerde') || raw.includes('problem') || raw.includes('fehler') || raw.includes('technical error')) return 'Es gab ein Problem im Gespräch und Nachfassen ist sinnvoll.';
-  if (raw.includes('aufgelegt') || raw.includes('hang up') || raw.includes('hung up')) return 'Das Gespräch wurde schnell beendet.';
-  return 'Das Gespräch wurde kurz zusammengefasst.';
+  if (reason.includes('voicemail') || reason.includes('mailbox')) return 'Der Kunde war nicht erreichbar.';
+  if (reason.includes('no_answer') || reason.includes('dial_no_answer')) return 'Keine Antwort.';
+  if (reason.includes('agent_hangup')) return 'Gespräch beendet.';
+  return '';
 }
 function callFlags(call) {
   const txt = fullSummaryText(call);
