@@ -1,0 +1,12 @@
+{
+  "name": "tawano-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tawano Customer Dashboard (frontend + Netlify functions)",
+  "scripts": {
+    "dev": "netlify dev"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17"
+  }
+}
