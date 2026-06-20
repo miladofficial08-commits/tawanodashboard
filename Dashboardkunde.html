@@ -357,7 +357,11 @@ function valueForCall(call) {
   if (info.key === 'problem' || info.key === 'live') return 0;
   if (info.key === 'callback' || info.key === 'transfer') return 20;
   const txt = fullSummaryText(call);
-  const success = /(sms|buchungslink|booking|termin|gebucht|booked|appointment|reserviert|mitgeteilt|verschickt|gesendet|weitergegeben)/.test(txt);
+  // Schwebende / offene / gescheiterte Ergebnisse zählen NICHT als Erfolg
+  const pending = /(angeboten|noch offen|offen geblieben|abwarten|warten|rückmeldung|rueckmeldung|nicht möglich|nicht moeglich|nicht erfolgreich|abgelehnt|kein termin|keine buchung|ohne ergebnis|nichts vereinbart|aufgelegt bevor)/.test(txt);
+  if (pending) return 0;
+  // Nur tatsächlich abgeschlossene Aktionen zählen als 40 €
+  const success = /(verschickt|gesendet|mitgeteilt|gebucht|reserviert|vereinbart|bestätigt|bestaetigt|booked|confirmed)/.test(txt);
   return success ? 40 : 0;
 }
 
