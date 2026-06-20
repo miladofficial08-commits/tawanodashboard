@@ -32,9 +32,15 @@ function mapCall(item) {
   const createdAt = toIsoFromMs(item.start_timestamp);
   const updatedAt = toIsoFromMs(item.end_timestamp || item.transfer_end_timestamp || item.start_timestamp);
   const callId = String(item.call_id || '');
+  const startMs = Number(item.start_timestamp || 0);
+  const endMs = Number(item.end_timestamp || item.transfer_end_timestamp || 0);
+  let durationMs = Number(item.duration_ms || 0);
+  if ((!durationMs || durationMs < 0) && endMs > startMs) durationMs = endMs - startMs;
+  if (!Number.isFinite(durationMs) || durationMs < 0) durationMs = 0;
   return {
     id: callId,
     call_id: callId,
+    durationMs,
     agent_id: item.agent_id || null,
     requestedAgentId: (item.metadata && item.metadata.requested_agent) || null,
     resolvedAgentId: item.agent_id || null,
