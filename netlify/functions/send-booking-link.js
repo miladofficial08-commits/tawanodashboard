@@ -11,13 +11,16 @@ const { envValue, insertRow, isMissingSchemaError, json, readBody, resolveTenant
 const DEFAULT_BOOKING_LINK = 'https://www.treatwell.de/ort/beauty-world-1-og-duesseldorf-arcaden/';
 
 // 2) Der SMS-Text. Platzhalter: {booking_link} = Link, {customer_name} = Name des Kunden.
-const DEFAULT_SMS_TEMPLATE = 'Vielen Dank fuer Ihren Anruf bei Beauty World Duesseldorf Arcaden.\n\nTermin online buchen:\n{booking_link}\n\nWie fanden Sie das Gespraech mit Lisa? Antworten Sie einfach mit 1 bis 5. 5 bedeutet sehr gut.\n\nIhr Beauty World Team';
+const DEFAULT_SMS_TEMPLATE = 'Vielen Dank für Ihren Anruf bei Beauty World Düsseldorf Arcaden.\n\nTermin online buchen:\n{booking_link}\n\nGespräch mit Lisa bewerten (1-5):\n{feedback_link}\n\nIhr Beauty World Team';
 
 // 3) Absender. ENTWEDER ein Name (max. 11 Zeichen, z. B. "Beautyworld" oder "Lisa")
 //    ODER eine echte seven.io-Nummer (z. B. "+49...").
 //    WICHTIG: Ein Name sieht schoen aus, kann aber KEINE Antworten empfangen.
 //    Fuer Feedback per 1-5 Antwort MUSS hier eine echte Nummer stehen.
 const DEFAULT_SMS_FROM = 'Beautyworld';
+
+// 4) Feedback-Seite (eigener, klar getrennter Link). Leer lassen ('') = kein Feedback-Link in der SMS.
+const FEEDBACK_BASE_URL = 'https://tawanodashboard.netlify.app/feedback';
 // ============================================================
 
 // Prueft, ob ein Wert eine echte Telefonnummer ist – verwirft KI-Platzhalter wie "<EINGEHENDE_NUMMER>".
@@ -164,9 +167,15 @@ exports.handler = async (event) => {
   const bookingLink = String(body.booking_link || body.bookingLink || tenant.booking_link_url || envValue('BOOKING_LINK_URL') || DEFAULT_BOOKING_LINK || '').trim();
   const name = String(body.customer_name || body.customerName || '').trim();
 
+  // Eigener Feedback-Link mit der Kundennummer (und Call-ID, falls vorhanden) - klar getrennt vom Buchungslink.
+  const feedbackLink = FEEDBACK_BASE_URL
+    ? (FEEDBACK_BASE_URL + '?p=' + encodeURIComponent(phone) + (body.call_id ? '&c=' + encodeURIComponent(body.call_id) : ''))
+    : '';
+
   const template = envValue('SMS_AFTER_CALL_TEMPLATE').trim() || DEFAULT_SMS_TEMPLATE;
   let message = String(body.message || template)
     .replace('{booking_link}', bookingLink || '')
+    .replace('{feedback_link}', feedbackLink || '')
     .replace('{customer_name}', name || '');
   // If booking link exists but template didn't contain the placeholder, append it
   if (bookingLink && !message.includes(bookingLink)) {

@@ -49,3 +49,14 @@ from = "/api/sms-inbound"
 to = "/.netlify/functions/sms-inbound"
 status = 200
 force = true
+
+[[redirects]]
+from = "/api/feedback"
+to = "/.netlify/functions/submit-feedback"
+status = 200
+force = true
+
+[[redirects]]
+from = "/feedback"
+to = "/feedback.html"
+status = 200

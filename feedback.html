@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feedback - Beauty World Düsseldorf Arcaden</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Manrope',sans-serif;background:linear-gradient(140deg,#eaf5ff,#f4f7fb);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:#132238}
+.card{background:#fff;border:1px solid #dfe7f0;border-radius:20px;padding:30px 24px;max-width:430px;width:100%;box-shadow:0 18px 42px rgba(12,27,47,.08);text-align:center}
+.brand{font-size:13px;font-weight:800;color:#0f8a5f;text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
+h1{font-size:23px;line-height:1.25;margin-bottom:10px}
+p.sub{font-size:15px;color:#64748b;line-height:1.6;margin-bottom:24px}
+.rates{display:flex;gap:10px;justify-content:center}
+.rate{width:54px;height:54px;border-radius:14px;border:1.5px solid #dfe7f0;background:#fff;font-size:20px;font-weight:800;color:#27415f;cursor:pointer;transition:transform .1s,border-color .1s,background .1s}
+.rate:hover{border-color:#0f8a5f;background:#eef8f3;transform:translateY(-2px)}
+.rate:disabled{opacity:.5;cursor:default}
+.scale{display:flex;justify-content:space-between;font-size:12px;color:#8090a5;font-weight:700;margin:8px 4px 0}
+.err{color:#b42318;font-size:13px;font-weight:700;margin-top:14px;min-height:16px}
+#done-view{display:none}
+#done-view h1{color:#0f8a5f}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="form-view">
+    <div class="brand">Beauty World Düsseldorf Arcaden</div>
+    <h1>Wie war das Gespräch mit Lisa?</h1>
+    <p class="sub">Bitte bewerten Sie von 1 bis 5. 5 bedeutet sehr gut.</p>
+    <div class="rates">
+      <button class="rate" onclick="send(1)">1</button>
+      <button class="rate" onclick="send(2)">2</button>
+      <button class="rate" onclick="send(3)">3</button>
+      <button class="rate" onclick="send(4)">4</button>
+      <button class="rate" onclick="send(5)">5</button>
+    </div>
+    <div class="scale"><span>Schlecht</span><span>Sehr gut</span></div>
+    <div id="err" class="err"></div>
+  </div>
+  <div id="done-view">
+    <div class="brand">Beauty World Düsseldorf Arcaden</div>
+    <h1>Vielen Dank für Ihr Feedback!</h1>
+    <p class="sub">Ihre Bewertung wurde gespeichert.</p>
+  </div>
+</div>
+<script>
+const params = new URLSearchParams(location.search);
+const phone = params.get('p') || '';
+const callId = params.get('c') || '';
+let sending = false;
+async function send(rating) {
+  if (sending) return;
+  sending = true;
+  document.getElementById('err').textContent = '';
+  document.querySelectorAll('.rate').forEach((b) => { b.disabled = true; });
+  try {
+    const res = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: phone, rating: rating, call_id: callId }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    document.getElementById('form-view').style.display = 'none';
+    document.getElementById('done-view').style.display = 'block';
+  } catch (e) {
+    sending = false;
+    document.querySelectorAll('.rate').forEach((b) => { b.disabled = false; });
+    document.getElementById('err').textContent = 'Es gab ein Problem. Bitte erneut versuchen.';
+  }
+}
+</script>
+</body>
+</html>
