@@ -2,6 +2,25 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { envValue, insertRow, isMissingSchemaError, json, readBody, resolveTenantFromToolBody } = require('./_lib/tenant');
 
+// ============================================================
+//  HIER ANPASSEN — Buchungslink & SMS-Text
+//  Danach speichern und pushen:
+//    git add . && git commit -m "sms anpassen" && git push
+// ============================================================
+// 1) Dein Standard-Buchungslink (wird in die SMS eingesetzt, ersetzt {booking_link}):
+const DEFAULT_BOOKING_LINK = '';   // <-- HIER deinen Treatwell-Link eintragen, z. B. 'https://widget.treatwell.de/.../'
+
+// 2) Der SMS-Text. Platzhalter: {booking_link} = Link, {customer_name} = Name des Kunden.
+const DEFAULT_SMS_TEMPLATE = 'Vielen Dank fuer Ihr Gespraech mit Beautyworld! Ihren Termin koennen Sie hier buchen: {booking_link} – Ihr Team von Beautyworld';
+// ============================================================
+
+// Prueft, ob ein Wert eine echte Telefonnummer ist – verwirft KI-Platzhalter wie "<EINGEHENDE_NUMMER>".
+function isRealPhone(value) {
+  const s = String(value || '').trim();
+  if (!s || /[<>{}]/.test(s)) return false;
+  return s.replace(/\D/g, '').length >= 7;
+}
+
 function isAuthorized(event) {
   const expected = envValue('RETELL_TOOL_SECRET').trim();
   if (!expected) return true;
@@ -115,22 +134,31 @@ exports.handler = async (event) => {
   if (!body.call_id && callInfo.call_id) body.call_id = callInfo.call_id;
   if (!body.agent_id && callInfo.agent_id) body.agent_id = callInfo.agent_id;
 
-  // Telefonnummer: explizit angegeben ODER automatisch die Nummer des Anrufers aus dem Call.
+  // Nummer aus dem Call (eingehend = Anrufer, ausgehend = angerufene Nummer)
+  const callerFrom = (c) => {
+    if (!c) return '';
+    const dir = String(c.direction || '').toLowerCase();
+    return String((dir === 'outbound' ? c.to_number : c.from_number) || c.from_number || c.to_number || '').trim();
+  };
+
+  // Telefonnummer ermitteln. Die KI schickt manchmal einen Platzhalter wie
+  // "<EINGEHENDE_NUMMER>" – solche Werte verwerfen und die echte Anrufer-Nummer nehmen.
   let phone = String(body.phone_number || body.phoneNumber || body.phone || '').trim();
-  if (!phone) {
-    const dir = String(callInfo.direction || '').toLowerCase();
-    phone = String((dir === 'outbound' ? callInfo.to_number : callInfo.from_number)
-      || callInfo.from_number || callInfo.to_number || '').trim();
-  }
-  if (!phone) return json(400, { ok: false, message: 'phone_number fehlt (weder in args noch als Anrufer-Nummer im Call gefunden)' });
+  if (!isRealPhone(phone)) phone = callerFrom(callInfo);
 
   const tenantContext = await resolveTenantFromToolBody(body);
   const tenant = tenantContext.tenant;
 
-  const bookingLink = String(body.booking_link || body.bookingLink || tenant.booking_link_url || envValue('BOOKING_LINK_URL') || '').trim();
+  // Letzter Versuch: Anrufer-Nummer aus dem von Retell nachgeladenen Call holen.
+  if (!isRealPhone(phone)) phone = callerFrom(tenantContext.call);
+  if (!isRealPhone(phone)) {
+    return json(400, { ok: false, message: 'Keine gueltige Telefonnummer gefunden. In Retell muss bei dieser Funktion "Payload: args only" AUS sein, damit die Anrufer-Nummer mitgesendet wird.' });
+  }
+
+  const bookingLink = String(body.booking_link || body.bookingLink || tenant.booking_link_url || envValue('BOOKING_LINK_URL') || DEFAULT_BOOKING_LINK || '').trim();
   const name = String(body.customer_name || body.customerName || '').trim();
 
-  const template = envValue('SMS_AFTER_CALL_TEMPLATE').trim() || 'Vielen Dank fuer Ihr Gespraech mit Beautyworld! Ihren Termin koennen Sie hier buchen: {booking_link} – Ihr Team von Beautyworld';
+  const template = envValue('SMS_AFTER_CALL_TEMPLATE').trim() || DEFAULT_SMS_TEMPLATE;
   let message = String(body.message || template)
     .replace('{booking_link}', bookingLink || '')
     .replace('{customer_name}', name || '');
