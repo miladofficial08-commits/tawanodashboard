@@ -12,6 +12,12 @@ const DEFAULT_BOOKING_LINK = 'https://www.treatwell.de/ort/beauty-world-1-og-due
 
 // 2) Der SMS-Text. Platzhalter: {booking_link} = Link, {customer_name} = Name des Kunden.
 const DEFAULT_SMS_TEMPLATE = 'Vielen Dank fuer Ihren Anruf bei Beauty World Duesseldorf Arcaden.\n\nTermin online buchen:\n{booking_link}\n\nWie fanden Sie das Gespraech mit Lisa? Antworten Sie einfach mit 1 bis 5. 5 bedeutet sehr gut.\n\nIhr Beauty World Team';
+
+// 3) Absender. ENTWEDER ein Name (max. 11 Zeichen, z. B. "Beautyworld" oder "Lisa")
+//    ODER eine echte seven.io-Nummer (z. B. "+49...").
+//    WICHTIG: Ein Name sieht schoen aus, kann aber KEINE Antworten empfangen.
+//    Fuer Feedback per 1-5 Antwort MUSS hier eine echte Nummer stehen.
+const DEFAULT_SMS_FROM = 'Beautyworld';
 // ============================================================
 
 // Prueft, ob ein Wert eine echte Telefonnummer ist – verwirft KI-Platzhalter wie "<EINGEHENDE_NUMMER>".
@@ -55,7 +61,7 @@ async function sendViaSeven(payload) {
     return { sent: false, provider: 'seven', message: 'SEVEN_API_KEY nicht gesetzt' };
   }
 
-  const smsFrom = envValue('SMS_FROM').trim();
+  const smsFrom = envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
   const body = {
     to: payload.to,
     text: payload.message,
