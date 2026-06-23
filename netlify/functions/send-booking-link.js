@@ -8,10 +8,10 @@ const { envValue, insertRow, isMissingSchemaError, json, readBody, resolveTenant
 //    git add . && git commit -m "sms anpassen" && git push
 // ============================================================
 // 1) Dein Standard-Buchungslink (wird in die SMS eingesetzt, ersetzt {booking_link}):
-const DEFAULT_BOOKING_LINK = '';   // <-- HIER deinen Treatwell-Link eintragen, z. B. 'https://widget.treatwell.de/.../'
+const DEFAULT_BOOKING_LINK = 'https://www.treatwell.de/ort/beauty-world-1-og-duesseldorf-arcaden/';
 
 // 2) Der SMS-Text. Platzhalter: {booking_link} = Link, {customer_name} = Name des Kunden.
-const DEFAULT_SMS_TEMPLATE = 'Vielen Dank fuer Ihr Gespraech mit Beautyworld! Ihren Termin koennen Sie hier buchen: {booking_link} – Ihr Team von Beautyworld';
+const DEFAULT_SMS_TEMPLATE = 'Vielen Dank fuer Ihren Anruf bei Beauty World Duesseldorf Arcaden.\n\nTermin online buchen:\n{booking_link}\n\nWie fanden Sie das Gespraech mit Lisa? Antworten Sie einfach mit 1 bis 5. 5 bedeutet sehr gut.\n\nIhr Beauty World Team';
 // ============================================================
 
 // Prueft, ob ein Wert eine echte Telefonnummer ist – verwirft KI-Platzhalter wie "<EINGEHENDE_NUMMER>".

@@ -43,3 +43,9 @@ from = "/api/callback"
 to = "/.netlify/functions/create-callback-request"
 status = 200
 force = true
+
+[[redirects]]
+from = "/api/sms-inbound"
+to = "/.netlify/functions/sms-inbound"
+status = 200
+force = true
