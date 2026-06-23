@@ -159,6 +159,7 @@ exports.handler = async (event) => {
       result = await sendViaWebhook(payload);
     }
     try {
+      const firstMsg = result.response && Array.isArray(result.response.messages) ? result.response.messages[0] : null;
       await insertRow('sms_logs', {
         tenant_id: tenant.id,
         phone_number: phone,
@@ -166,11 +167,12 @@ exports.handler = async (event) => {
         booking_link_url: bookingLink || null,
         message,
         provider: result.provider || 'unknown',
-        provider_message_id: result.response && (result.response.id || result.response.message_id) || null,
+        provider_message_id: (firstMsg && firstMsg.id) || (result.response && (result.response.id || result.response.message_id)) || null,
         status: result.sent ? 'sent' : 'queued',
       }, { serviceRole: true });
     } catch (error) {
-      if (!isMissingSchemaError(error)) throw error;
+      // Protokollierung in sms_logs ist optional (z. B. RLS-Policy oder fehlende Tabelle).
+      // Ein Fehler hier darf den eigentlichen SMS-Versand NIEMALS fehlschlagen lassen.
     }
     return json(result.sent ? 200 : 502, {
       ok: result.sent,
