@@ -40,6 +40,7 @@ async function sendViaSeven(payload) {
   const body = {
     to: payload.to,
     text: payload.message,
+    json: 1,
   };
   if (smsFrom) body.from = smsFrom;
 
@@ -47,28 +48,49 @@ async function sendViaSeven(payload) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      Accept: 'application/json',
       'X-Api-Key': apiKey,
     },
     body: JSON.stringify(body),
   });
 
-  const raw = await response.text();
+  const raw = String(await response.text() || '').trim();
   if (!response.ok) {
     throw new Error('seven.io failed: HTTP ' + response.status + ' ' + raw);
   }
 
-  let data = {};
-  try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = {}; }
+  // seven.io antwortet mit json=1 als Objekt {"success":"100","messages":[{"success":true,...}]}
+  // ODER (ohne json) als reiner Text "100". Beides robust auswerten.
+  // Wichtig: success:100 heisst nur "Anfrage ok" – ob die EINZELNE SMS rausging, steht in messages[].success.
+  let data = null;
+  try { data = JSON.parse(raw); } catch (_) { data = null; }
 
-  // seven.io: 100 = success, anything else = error
-  const code = typeof data === 'number' ? data : (data && typeof data.success !== 'undefined' ? Number(data.success) : -999);
-  const isSuccess = code === 100;
+  let code;
+  let isSuccess = false;
+  let detail = '';
+  if (data && typeof data === 'object') {
+    code = Number(data.success !== undefined ? data.success : data.code);
+    const msgs = Array.isArray(data.messages) ? data.messages : [];
+    if (msgs.length) {
+      const okMsg = msgs.find((m) => m && (m.success === true || Number(m.error) === 100));
+      isSuccess = code === 100 && Boolean(okMsg);
+      if (!isSuccess) {
+        const bad = msgs.find((m) => m && (m.error_text || m.error)) || {};
+        detail = bad.error_text ? (' (' + bad.error_text + ', Code ' + bad.error + ')') : '';
+      }
+    } else {
+      isSuccess = code === 100;
+    }
+  } else {
+    code = Number(raw.split(/[\s\n]/)[0]);
+    isSuccess = code === 100;
+  }
 
   return {
     sent: isSuccess,
     provider: 'seven',
-    message: isSuccess ? 'SMS ausgeloest' : 'SMS fehlgeschlagen: Code ' + code,
-    response: data,
+    message: isSuccess ? 'SMS ausgeloest' : ('SMS fehlgeschlagen: seven.io Code ' + (Number.isFinite(code) ? code : raw) + detail),
+    response: data || raw,
     responseCode: code,
   };
 }
@@ -81,11 +103,26 @@ exports.handler = async (event) => {
     return json(401, { ok: false, message: 'Unauthorized tool call' });
   }
 
-  const body = readBody(event);
-  if (!body) return json(400, { ok: false, message: 'Invalid JSON body' });
+  const raw = readBody(event);
+  if (!raw) return json(400, { ok: false, message: 'Invalid JSON body' });
 
-  const phone = String(body.phone_number || body.phoneNumber || body.phone || '').trim();
-  if (!phone) return json(400, { ok: false, message: 'phone_number fehlt' });
+  // Retell schickt je nach Einstellung entweder { call, args: {...} } ODER die Felder direkt.
+  // Beides unterstuetzen: Argumente aus "args" mit der obersten Ebene zusammenfuehren.
+  const args = (raw.args && typeof raw.args === 'object') ? raw.args
+    : ((raw.arguments && typeof raw.arguments === 'object') ? raw.arguments : {});
+  const callInfo = (raw.call && typeof raw.call === 'object') ? raw.call : {};
+  const body = Object.assign({}, raw, args);
+  if (!body.call_id && callInfo.call_id) body.call_id = callInfo.call_id;
+  if (!body.agent_id && callInfo.agent_id) body.agent_id = callInfo.agent_id;
+
+  // Telefonnummer: explizit angegeben ODER automatisch die Nummer des Anrufers aus dem Call.
+  let phone = String(body.phone_number || body.phoneNumber || body.phone || '').trim();
+  if (!phone) {
+    const dir = String(callInfo.direction || '').toLowerCase();
+    phone = String((dir === 'outbound' ? callInfo.to_number : callInfo.from_number)
+      || callInfo.from_number || callInfo.to_number || '').trim();
+  }
+  if (!phone) return json(400, { ok: false, message: 'phone_number fehlt (weder in args noch als Anrufer-Nummer im Call gefunden)' });
 
   const tenantContext = await resolveTenantFromToolBody(body);
   const tenant = tenantContext.tenant;
