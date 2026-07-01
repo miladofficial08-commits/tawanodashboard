@@ -1027,8 +1027,9 @@ async function refreshCalls() {
     }
     if (res.status === 401 || res.status === 403) { setStatus('err', 'Login abgelaufen'); logout(); return; }
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    // Das Backend liefert bereits nur die Anrufe DIESES Kunden (nach seinem Agent gefiltert).
+    // Kein fester Agent-Filter mehr im Frontend -> funktioniert fuer jeden Kunden (Multi-Tenant).
     calls = (Array.isArray(data.calls) ? data.calls : [])
-      .filter(isAgentCall)
       .filter((c) => callTimeMs(c) >= resetAt);
     render();
     setStatus('ok', 'Live');

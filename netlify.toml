@@ -60,3 +60,14 @@ force = true
 from = "/feedback"
 to = "/feedback.html"
 status = 200
+
+[[redirects]]
+from = "/api/admin/create-customer"
+to = "/.netlify/functions/admin-create-customer"
+status = 200
+force = true
+
+[[redirects]]
+from = "/admin"
+to = "/admin.html"
+status = 200

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kunden verwalten - Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Manrope',sans-serif;background:linear-gradient(140deg,#eaf5ff,#f4f7fb);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px;color:#132238}
+.card{background:#fff;border:1px solid #dfe7f0;border-radius:20px;padding:28px 26px;max-width:520px;width:100%;box-shadow:0 18px 42px rgba(12,27,47,.08)}
+.brand{font-size:13px;font-weight:800;color:#0f8a5f;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+h1{font-size:24px;margin-bottom:6px}
+p.sub{font-size:14px;color:#64748b;line-height:1.6;margin-bottom:22px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field label{font-size:11px;font-weight:800;text-transform:uppercase;color:#4c607a}
+.field input{width:100%;border:1.5px solid #dfe7f0;border-radius:10px;padding:12px 13px;font-size:15px;outline:none}
+.field input:focus{border-color:#0f8a5f;box-shadow:0 0 0 4px rgba(15,138,95,.12)}
+.hint{font-size:12px;color:#8090a5;margin-top:2px}
+.btn{border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;background:#0f8a5f;color:#fff;width:100%;margin-top:4px}
+.btn:disabled{opacity:.5;cursor:default}
+.msg{margin-top:16px;font-size:14px;font-weight:700;line-height:1.6;min-height:20px}
+.msg.ok{color:#0f8a5f}
+.msg.err{color:#b42318}
+.divider{height:1px;background:#eef3f8;margin:18px 0}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">Admin</div>
+  <h1>Neuen Kunden anlegen</h1>
+  <p class="sub">Legt Login + Kunde + Voice Agent in einem Schritt an. Der Kunde loggt sich danach ein und sieht nur seine eigenen Daten.</p>
+
+  <div class="field">
+    <label>Admin-Passwort</label>
+    <input id="admin_secret" type="password" placeholder="ADMIN_SECRET" autocomplete="off">
+    <div class="hint">Dein geheimes Admin-Passwort (in Netlify als ADMIN_SECRET hinterlegt).</div>
+  </div>
+  <div class="divider"></div>
+
+  <div class="field">
+    <label>Firmenname des Kunden</label>
+    <input id="name" type="text" placeholder="Beauty World Duesseldorf">
+  </div>
+  <div class="field">
+    <label>Login E-Mail</label>
+    <input id="email" type="email" placeholder="kunde@example.de" autocomplete="off">
+  </div>
+  <div class="field">
+    <label>Passwort fuer den Kunden</label>
+    <input id="password" type="text" placeholder="mind. 8 Zeichen" autocomplete="off">
+    <div class="hint">Dieses Passwort gibst du dem Kunden weiter.</div>
+  </div>
+  <div class="field">
+    <label>Voice Agent ID</label>
+    <input id="agent_id" type="text" placeholder="agent_xxxxxxxxxxxx">
+  </div>
+  <div class="field">
+    <label>Telefonnummer (optional)</label>
+    <input id="from_number" type="tel" placeholder="+49...">
+  </div>
+  <div class="field">
+    <label>Buchungslink (optional)</label>
+    <input id="booking_link" type="url" placeholder="https://...">
+  </div>
+
+  <button id="submit" class="btn" onclick="createCustomer()">Kunde anlegen</button>
+  <div id="msg" class="msg"></div>
+</div>
+<script>
+function val(id){ return (document.getElementById(id).value || '').trim(); }
+async function createCustomer(){
+  const btn = document.getElementById('submit');
+  const msg = document.getElementById('msg');
+  msg.className = 'msg'; msg.textContent = '';
+  const payload = {
+    admin_secret: val('admin_secret'),
+    name: val('name'),
+    email: val('email'),
+    password: val('password'),
+    agent_id: val('agent_id'),
+    from_number: val('from_number'),
+    booking_link: val('booking_link'),
+  };
+  if(!payload.admin_secret || !payload.name || !payload.email || !payload.password || !payload.agent_id){
+    msg.className = 'msg err'; msg.textContent = 'Bitte Admin-Passwort, Firmenname, E-Mail, Passwort und Agent ID ausfuellen.'; return;
+  }
+  btn.disabled = true; btn.textContent = 'Wird angelegt...';
+  try{
+    const res = await fetch('/api/admin/create-customer', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok || !data.ok){ throw new Error(data.message || ('HTTP '+res.status)); }
+    msg.className = 'msg ok';
+    msg.textContent = 'Erledigt. ' + payload.name + ' kann sich jetzt mit ' + payload.email + ' einloggen.';
+    ['name','email','password','agent_id','from_number','booking_link'].forEach(id=>{ document.getElementById(id).value=''; });
+  }catch(e){
+    msg.className = 'msg err'; msg.textContent = 'Fehler: ' + (e.message || e);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Kunde anlegen';
+  }
+}
+</script>
+</body>
+</html>
