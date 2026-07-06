@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { bearerTokenFromEvent, envValue, json, listRows, resolveTenantContextFromAccessToken } = require('./_lib/tenant');
+const { bearerTokenFromEvent, envValue, json, listRows, resolveTenantContextFromAccessToken, getTenantSettings } = require('./_lib/tenant');
 
 function toIsoFromMs(ms) {
   const num = Number(ms || 0);
@@ -97,6 +97,14 @@ exports.handler = async (event) => {
 
   const retellApiKey = envValue('RETELL_API_KEY').trim();
   if (!retellApiKey) return json(500, { ok: false, message: 'RETELL_API_KEY fehlt in .env.' });
+
+  // Minuten-Budget aus den Kunden-Einstellungen (Admin) an den Tenant haengen -> steuert den Live-Minuten-Kreis.
+  if (tenantContext.tenant && tenantContext.tenant.id) {
+    try {
+      const settings = await getTenantSettings(tenantContext.tenant.id, { accessToken });
+      if (settings && settings.minutes_budget !== undefined) tenantContext.tenant.minutes_budget = Number(settings.minutes_budget) || 0;
+    } catch (_) { /* Einstellungen optional */ }
+  }
 
   const agentId = String((tenantContext.tenant && tenantContext.tenant.retell_agent_id) || envValue('RETELL_AGENT_BEAUTY') || envValue('RETELL_AGENT_DEFAULT') || '').trim();
   const body = {

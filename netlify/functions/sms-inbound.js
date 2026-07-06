@@ -1,4 +1,4 @@
-const { envValue, insertRow, json } = require('./_lib/tenant');
+const { envValue, insertRow, json, getTenantByPhoneNumber } = require('./_lib/tenant');
 
 // Liest die eingehende SMS aus, egal ob seven.io sie als JSON, urlencoded oder
 // als GET-Query schickt. Gibt ein flaches Objekt mit allen Feldern zurueck.
@@ -31,6 +31,18 @@ function parseRating(text) {
   return null;
 }
 
+async function resolveTenantIdForInbound(systemNumber) {
+  const fallback = envValue('FALLBACK_TENANT_ID') || 'tenant_beautyworld';
+  const candidate = String(systemNumber || '').trim();
+  if (!candidate) return fallback;
+  try {
+    const tenant = await getTenantByPhoneNumber(candidate, { serviceRole: true });
+    return String((tenant && tenant.id) || fallback);
+  } catch (_) {
+    return fallback;
+  }
+}
+
 exports.handler = async (event) => {
   const data = parseIncoming(event);
   const sender = String(data.sender || data.from || data.msisdn || data.originator || '').trim();
@@ -38,6 +50,7 @@ exports.handler = async (event) => {
   const system = String(data.system || data.to || data.receiver || '').trim();
   const providerId = String(data.id || data.msg_id || data.message_id || '').trim();
   const rating = parseRating(text);
+  const tenantId = await resolveTenantIdForInbound(system);
 
   // Immer 200 zurueckgeben, damit seven.io die Zustellung nicht wiederholt.
   if (!sender && !text) {
@@ -48,12 +61,12 @@ exports.handler = async (event) => {
   let stored = false;
   try {
     await insertRow('sms_feedback', {
-      tenant_id: envValue('FALLBACK_TENANT_ID') || 'tenant_beautyworld',
+      tenant_id: tenantId,
       phone_number: sender || null,
       rating: rating,
       message: text || null,
       provider_message_id: providerId || null,
-    });
+    }, { serviceRole: true });
     stored = true;
   } catch (error) {
     // Tabelle fehlt noch oder RLS blockt: Feedback wenigstens ins Function-Log schreiben, damit es nicht verloren geht.

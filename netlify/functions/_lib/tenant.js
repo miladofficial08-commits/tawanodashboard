@@ -210,6 +210,7 @@ function fallbackTenantFromEnv(options) {
     booking_link_url: envValue('BOOKING_LINK_URL') || null,
     sms_sender: envValue('SMS_FROM') || null,
     go_live_at: envValue('DASHBOARD_GO_LIVE_AT') || null,
+    minutes_budget: Number(envValue('DASHBOARD_MINUTES_BUDGET')) || null,
     is_active: true,
   };
 }
@@ -222,6 +223,56 @@ async function getTenantById(tenantId, options) {
 async function getTenantByAgentId(agentId, options) {
   const rows = await listRows('tenants', { select: '*', retell_agent_id: 'eq.' + agentId, limit: 1 }, options || {});
   return rows[0] || null;
+}
+
+function normalizePhone(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+async function getTenantByPhoneNumber(phoneNumber, options) {
+  const normalizedTarget = normalizePhone(phoneNumber);
+  if (!normalizedTarget) return null;
+
+  const rows = await listRows('tenants', {
+    select: '*',
+    retell_from_number: 'not.is.null',
+    limit: 500,
+  }, options || {});
+
+  for (const row of rows) {
+    if (normalizePhone(row && row.retell_from_number) === normalizedTarget) {
+      return row;
+    }
+  }
+  return null;
+}
+
+// Pro-Kunde-Einstellungen (minutes_budget, sms_enabled, sms_template) liegen als
+// jsonb-Snapshot in analytics_snapshots -> keine neuen DB-Spalten noetig.
+async function getTenantSettings(tenantId, options) {
+  if (!tenantId) return {};
+  try {
+    const rows = await listRows('analytics_snapshots', {
+      select: 'payload,created_at',
+      tenant_id: 'eq.' + tenantId,
+      snapshot_type: 'eq.tenant_settings',
+      order: 'created_at.desc',
+      limit: 1,
+    }, options || {});
+    return (rows[0] && rows[0].payload) || {};
+  } catch (_) {
+    return {};
+  }
+}
+async function saveTenantSettings(tenantId, patch, options) {
+  const current = await getTenantSettings(tenantId, options);
+  const merged = Object.assign({}, current, patch);
+  await insertRow('analytics_snapshots', {
+    tenant_id: tenantId,
+    snapshot_type: 'tenant_settings',
+    payload: merged,
+  }, options || {});
+  return merged;
 }
 
 async function resolveTenantContextFromAccessToken(accessToken) {
@@ -287,6 +338,7 @@ async function resolveTenantFromToolBody(body) {
   let call = null;
   const tenantId = String(payload.tenant_id || payload.tenantId || '').trim();
   const bodyAgentId = String(payload.agent_id || payload.agentId || '').trim();
+  const callPayload = (payload.call && typeof payload.call === 'object') ? payload.call : null;
 
   if (tenantId) {
     try {
@@ -304,6 +356,60 @@ async function resolveTenantFromToolBody(body) {
       } catch (_) {
         tenant = null;
       }
+    }
+  }
+
+  if (!tenant) {
+    const numberCandidates = [];
+    const pushCandidate = (v) => {
+      const s = String(v || '').trim();
+      if (!s) return;
+      numberCandidates.push(s);
+    };
+
+    // Direkte Felder aus Tool-Body.
+    pushCandidate(payload.system_number);
+    pushCandidate(payload.systemNumber);
+    pushCandidate(payload.retell_from_number);
+    pushCandidate(payload.from_number);
+    pushCandidate(payload.to_number);
+    pushCandidate(payload.phone_number);
+
+    // Nummern aus live Call-Payload von Retell.
+    if (callPayload) {
+      const dir = String(callPayload.direction || '').toLowerCase();
+      if (dir === 'outbound') {
+        pushCandidate(callPayload.from_number);
+      } else {
+        pushCandidate(callPayload.to_number);
+      }
+      pushCandidate(callPayload.from_number);
+      pushCandidate(callPayload.to_number);
+    }
+
+    // Nummern aus nachgeladenem Call via call_id.
+    if (call) {
+      const dir = String(call.direction || '').toLowerCase();
+      if (dir === 'outbound') {
+        pushCandidate(call.from_number);
+      } else {
+        pushCandidate(call.to_number);
+      }
+      pushCandidate(call.from_number);
+      pushCandidate(call.to_number);
+    }
+
+    const seen = new Set();
+    for (const candidate of numberCandidates) {
+      const key = normalizePhone(candidate);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      try {
+        tenant = await getTenantByPhoneNumber(candidate, { serviceRole: true });
+      } catch (_) {
+        tenant = null;
+      }
+      if (tenant) break;
     }
   }
 
@@ -341,4 +447,7 @@ module.exports = {
   readBody,
   resolveTenantContextFromAccessToken,
   resolveTenantFromToolBody,
+  getTenantByPhoneNumber,
+  getTenantSettings,
+  saveTenantSettings,
 };

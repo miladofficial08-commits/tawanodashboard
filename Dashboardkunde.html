@@ -188,6 +188,49 @@ button,input{font-family:'Manrope',sans-serif}
 .bar-row .bar-top{display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:#213b57}
 .bar-track{height:9px;border-radius:999px;background:#eef3f8;overflow:hidden}
 .bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#1d4ed8,#3b82f6);transition:width .5s ease}
+.contact-search{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;outline:none}
+.contact-search:focus{border-color:var(--green);box-shadow:0 0 0 4px rgba(15,138,95,.12)}
+.contacts{display:flex;flex-direction:column}
+.contact-row{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #eef3f8;cursor:pointer;transition:background .12s}
+.contact-row:last-child{border-bottom:none}
+.contact-row:hover{background:#f7fbff}
+.contact-av{width:42px;height:42px;border-radius:12px;background:#eef4ff;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0}
+.contact-av.open{background:#fff4e8;color:#c96500}
+.contact-main{flex:1;min-width:0}
+.contact-main strong{display:block;font-size:15px;color:#132238;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.contact-main span{display:block;font-size:13px;color:#66798f;margin-top:2px}
+.contact-meta{text-align:right;flex-shrink:0}
+.contact-count{display:inline-block;font-size:12px;font-weight:800;color:#1d4ed8;background:#eef4ff;padding:3px 9px;border-radius:999px}
+.contact-count.repeat{color:#0f8a5f;background:#eaf9f1}
+.contact-when{display:block;font-size:12px;color:#8090a5;margin-top:5px;font-weight:700}
+.contact-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.contact-stats div{border:1px solid #e6eef7;border-radius:10px;background:#fbfdff;padding:10px 8px;text-align:center}
+.contact-stats em{display:block;font-style:normal;font-size:10px;font-weight:800;text-transform:uppercase;color:#73839a;margin-bottom:4px}
+.contact-stats b{font-size:15px;color:#132238}
+.contact-actions{display:flex;gap:8px}
+.contact-actions .btn-mini{flex:1;text-align:center}
+.timeline{display:flex;flex-direction:column;gap:8px}
+.tl-item{border:1px solid #e6eef7;border-radius:10px;background:#fbfdff;padding:11px 13px;cursor:pointer;transition:background .12s}
+.tl-item:hover{background:#f2f7ff}
+.tl-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px}
+.tl-top small{font-size:12px;color:#8090a5;font-weight:700}
+.tl-item p{font-size:13px;color:#3a5270;line-height:1.5}
+.tabs{position:sticky;top:52px;z-index:9;background:#fffffff2;border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}
+.tabs-inner{max-width:1180px;margin:0 auto;padding:0 18px;display:flex;gap:2px;overflow-x:auto}
+.tab{border:none;background:none;padding:14px 16px;font-size:14px;font-weight:800;color:#64748b;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tab:hover{color:#132238}
+.tab.active{color:#0f8a5f;border-bottom-color:#0f8a5f}
+.view-wrap{max-width:1180px;margin:0 auto;padding:18px}
+.an-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.hourbars{display:flex;align-items:flex-end;gap:3px;height:96px}
+.hourbars .hb{flex:1;background:#dbe7fb;border-radius:3px 3px 0 0;min-height:3px}
+.hourbars .hb.peak{background:#1d4ed8}
+.hour-axis{display:flex;justify-content:space-between;font-size:10px;color:#8090a5;font-weight:700;margin-top:7px}
+.fb-hero{display:flex;align-items:center;gap:22px;margin-bottom:16px}
+.fb-score{font-size:52px;font-weight:800;line-height:1;color:#0f8a5f}
+.fb-stars{font-size:13px;color:#66798f;font-weight:700;margin-top:4px}
+.fb-dist{flex:1;display:flex;flex-direction:column;gap:6px}
+@media(max-width:980px){.an-grid{grid-template-columns:1fr}}
 @media(max-width:1120px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:980px){.main{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.right{position:static}.task-meta{grid-template-columns:1fr}}
 @media(max-width:680px){.login{grid-template-columns:1fr}.login-left{padding:34px 18px 10px}.login-right{padding:16px}.login-mini{grid-template-columns:1fr}.cards{grid-template-columns:1fr}.hero h1{font-size:28px}.summary-line{font-size:17px}.task-head,.task-footer{align-items:flex-start}}
@@ -225,15 +268,26 @@ button,input{font-family:'Manrope',sans-serif}
     </div>
   </header>
 
+  <nav class="tabs">
+    <div class="tabs-inner">
+      <button class="tab active" data-view="overview" onclick="setView('overview')">Übersicht</button>
+      <button class="tab" data-view="kunden" onclick="setView('kunden')">Kunden</button>
+      <button class="tab" data-view="analyse" onclick="setView('analyse')">Analyse</button>
+      <button class="tab" data-view="feedback" onclick="setView('feedback')">Feedback</button>
+    </div>
+  </nav>
+
+  <div id="view-overview" class="view">
   <main class="main">
     <section>
       <div class="hero">
+        <div id="tenant-brand" style="font-size:13px;font-weight:800;color:#0f8a5f;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px"></div>
         <h1>Heute auf einen Blick</h1>
         <p id="hero-summary" class="summary-line">Heute wurden 0 Anrufe angenommen. 0 Kunden brauchen Rückruf. Geschätzter Umsatzwert: 0 €.</p>
         <div id="hero-note" class="summary-note">Hier siehst du sofort, was passiert ist, was du jetzt tun musst und welchen Wert der Agent bringt.</div>
       </div>
 
-      <div class="ring-card" style="margin-bottom:12px">
+      <div id="minutes-ring-card" class="ring-card" style="margin-bottom:12px">
         <div class="ring-wrap">
           <svg width="112" height="112" viewBox="0 0 112 112">
             <circle cx="56" cy="56" r="48" fill="none" stroke="#eef3f8" stroke-width="12"></circle>
@@ -270,15 +324,6 @@ button,input{font-family:'Manrope',sans-serif}
         <div class="list-footer"><button id="more-calls-btn" class="btn-more hidden" onclick="toggleShowAllCalls()">Mehr Anrufe zeigen</button></div>
       </section>
 
-      <section class="panel">
-        <div class="panel-head">
-          <div><h2>Analyse</h2><p>Worüber deine Kunden sprechen – über den gesamten Zeitraum.</p></div>
-        </div>
-        <div style="padding:16px">
-          <div class="analytics" id="analytics-cards"></div>
-          <div class="bars" id="analytics-bars"><div class="empty">Noch keine Anrufe für die Analyse.</div></div>
-        </div>
-      </section>
     </section>
 
     <aside class="right">
@@ -302,6 +347,43 @@ button,input{font-family:'Manrope',sans-serif}
       </div>
     </aside>
   </main>
+  </div>
+
+  <div id="view-kunden" class="view hidden">
+    <div class="view-wrap">
+      <section class="panel">
+        <div class="panel-head"><div><h2>Kunden</h2><p id="contacts-sub">Jeder Anrufer mit seiner Historie. Klicke einen Kunden für Details.</p></div></div>
+        <div style="padding:12px 16px 6px"><input id="contact-search" class="contact-search" type="text" placeholder="Suche nach Name oder Nummer..." oninput="renderContacts()"></div>
+        <div id="contacts-list" class="contacts"><div class="empty">Noch keine Kunden.</div></div>
+        <div class="list-footer"><button id="more-contacts-btn" class="btn-more hidden" onclick="toggleShowAllContacts()">Mehr Kunden zeigen</button></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="view-analyse" class="view hidden">
+    <div class="view-wrap">
+      <div class="analytics" id="analytics-cards" style="margin-bottom:14px"></div>
+      <div class="an-grid">
+        <section class="panel"><div class="panel-head"><div><h2>Warum rufen Kunden an?</h2><p>Themen der Gespräche.</p></div></div><div style="padding:16px"><div class="bars" id="analytics-bars"><div class="empty">Noch keine Anrufe für die Analyse.</div></div></div></section>
+        <section class="panel"><div class="panel-head"><div><h2>Ergebnisse</h2><p>Wie enden die Gespräche.</p></div></div><div style="padding:16px"><div class="bars" id="analytics-outcomes"></div></div></section>
+      </div>
+      <div class="an-grid">
+        <section class="panel"><div class="panel-head"><div><h2>Anrufe pro Tag</h2><p>Letzte 7 Tage.</p></div></div><div style="padding:16px"><div class="bars" id="analytics-days"></div></div></section>
+        <section class="panel"><div class="panel-head"><div><h2>Wann rufen Kunden an?</h2><p>Verteilung nach Uhrzeit.</p></div></div><div style="padding:16px"><div class="hourbars" id="analytics-hours"></div><div class="hour-axis"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div></div></section>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-feedback" class="view hidden">
+    <div class="view-wrap">
+      <section class="panel">
+        <div class="panel-head"><div><h2>Kunden-Feedback</h2><p>Bewertungen aus den SMS-Antworten (1 bis 5).</p></div></div>
+        <div style="padding:20px" id="feedback-body">
+          <div class="empty">Sobald Kunden per SMS mit 1 bis 5 bewerten, erscheinen hier Durchschnitt und Verlauf.</div>
+        </div>
+      </section>
+    </div>
+  </div>
 </section>
 
 <div id="call-detail-overlay" class="detail-overlay hidden" onclick="closeDetail(event)">
@@ -317,14 +399,50 @@ button,input{font-family:'Manrope',sans-serif}
   </div>
 </div>
 
+<div id="contact-overlay" class="detail-overlay hidden" onclick="closeContact(event)">
+  <div class="detail-panel">
+    <div class="detail-panel-head">
+      <div class="head-title">
+        <h3 id="contact-title">Kunde</h3>
+        <div class="sub" id="contact-sub"></div>
+      </div>
+      <button onclick="closeContact()" title="Schließen">×</button>
+    </div>
+    <div id="contact-body"></div>
+  </div>
+</div>
+
 <script>
 const AGENT_ALIAS = 'beautyworlds-demo';
 const AGENT_ID = 'agent_2b923be111a55cac5e2ac3d547';
 const LIVE_SERVER_URL = 'https://tawanodashboard.netlify.app';
 
 let calls = [];
-let authToken = localStorage.getItem('tawano_access_token') || '';
-let currentUser = JSON.parse(localStorage.getItem('tawano_user') || 'null');
+let authToken = '';
+let currentUser = null;
+// Admin-Ansicht ("Dashboard oeffnen") laeuft pro Tab ueber sessionStorage -> ueberschreibt NIE
+// den echten Kunden-Login und vermischt keine Daten zwischen Tabs.
+(function initAuthSession() {
+  try {
+    const h = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+    const impTok = h.get('admin_token');
+    if (impTok) {
+      authToken = impTok;
+      currentUser = { email: h.get('admin_email') || 'Kunde (Admin-Ansicht)' };
+      sessionStorage.setItem('tawano_imp_token', impTok);
+      sessionStorage.setItem('tawano_imp_user', JSON.stringify(currentUser));
+      if (history.replaceState) history.replaceState(null, '', location.pathname);
+      return;
+    }
+    const st = sessionStorage.getItem('tawano_imp_token');
+    if (st) { authToken = st; currentUser = JSON.parse(sessionStorage.getItem('tawano_imp_user') || 'null'); return; }
+    authToken = localStorage.getItem('tawano_access_token') || '';
+    currentUser = JSON.parse(localStorage.getItem('tawano_user') || 'null');
+  } catch (_) {
+    authToken = localStorage.getItem('tawano_access_token') || '';
+  }
+})();
+let currentTenant = null;
 let timer = null;
 let activeFilter = 'all';
 let completedTasks = loadCompletedTasks();
@@ -334,7 +452,9 @@ const DEFAULT_VISIBLE_CALLS = 5;
 // ===== Live-Minuten Budget (hier ändern, falls mehr/weniger Minuten gewünscht) =====
 const MINUTES_BUDGET = 200;
 // Reset-Zeitpunkt: alle Anrufe DAVOR werden ausgeblendet (persistent pro Gerät)
-let resetAt = Number(localStorage.getItem('tawano_reset_at') || 0);
+// Reset ist PRO KUNDE getrennt (eigener Schluessel je Tenant) -> resettet NIE einen anderen Kunden.
+function tenantResetKey() { return 'tawano_reset_' + (currentTenant && currentTenant.id ? currentTenant.id : 'default'); }
+function getResetAt() { return Number(localStorage.getItem(tenantResetKey()) || 0); }
 function callTimeMs(call) {
   const t = new Date(call && (call.createdAt || call.updatedAt) || 0).getTime();
   return Number.isFinite(t) ? t : 0;
@@ -912,28 +1032,25 @@ async function resetDashboardData() {
   if (!ok) return;
   setStatus('', 'Reset laeuft...');
 
-  // 1) Reset-Zeitpunkt sofort dauerhaft speichern (das ist der eigentliche, zuverlaessige Reset)
-  resetAt = Date.now();
-  localStorage.setItem('tawano_reset_at', String(resetAt));
-  // Abgehakte Aufgaben ebenfalls leeren
-  completedTasks = {};
-  persistCompletedTasks();
-  // Anrufe lokal sofort leeren und neu rendern (alles auf 0)
+  // Reset-Zeitpunkt NUR fuer DIESEN Kunden speichern (eigener Schluessel je Tenant).
+  const now = Date.now();
+  localStorage.setItem(tenantResetKey(), String(now));
+  // Anrufe lokal sofort leeren und neu rendern (nur dieser Kunde auf 0)
   calls = [];
   render();
 
-  // 2) Server zusaetzlich informieren (Best-Effort, falls serverseitig gespeichert werden kann)
+  // Server zusaetzlich informieren (Best-Effort, mit dem Login DIESES Kunden).
   try {
     let res = await fetch(serverUrl() + '/api/debug/reset', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ reason: 'customer_clean_restart', resetAt: new Date(resetAt).toISOString() }),
+      body: JSON.stringify({ reason: 'customer_clean_restart', resetAt: new Date(now).toISOString() }),
     });
     if (res.status === 404) {
       res = await fetch(serverUrl() + '/.netlify/functions/debug-reset', {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ reason: 'customer_clean_restart', resetAt: new Date(resetAt).toISOString() }),
+        body: JSON.stringify({ reason: 'customer_clean_restart', resetAt: new Date(now).toISOString() }),
       });
     }
   } catch (_) { /* Server-Reset optional – lokaler Reset greift bereits */ }
@@ -985,6 +1102,8 @@ function logout() {
   calls = [];
   localStorage.removeItem('tawano_access_token');
   localStorage.removeItem('tawano_user');
+  sessionStorage.removeItem('tawano_imp_token');
+  sessionStorage.removeItem('tawano_imp_user');
   showLogin();
 }
 
@@ -1027,10 +1146,11 @@ async function refreshCalls() {
     }
     if (res.status === 401 || res.status === 403) { setStatus('err', 'Login abgelaufen'); logout(); return; }
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    currentTenant = data.tenant || currentTenant;
     // Das Backend liefert bereits nur die Anrufe DIESES Kunden (nach seinem Agent gefiltert).
     // Kein fester Agent-Filter mehr im Frontend -> funktioniert fuer jeden Kunden (Multi-Tenant).
     calls = (Array.isArray(data.calls) ? data.calls : [])
-      .filter((c) => callTimeMs(c) >= resetAt);
+      .filter((c) => callTimeMs(c) >= getResetAt());
     render();
     setStatus('ok', 'Live');
   } catch (error) {
@@ -1051,6 +1171,11 @@ function setFilter(filter) {
 }
 
 function render() {
+  const brandEl = document.getElementById('tenant-brand');
+  const tenantName = String(currentTenant && currentTenant.name || '').trim();
+  if (brandEl) brandEl.textContent = tenantName;
+  if (tenantName) document.title = tenantName + ' - Dashboard';
+
   const items = sortItems(calls.slice(0, 220).map(buildItemModel));
   const todayItems = items.filter((item) => isToday(item.createdAt));
   const openItems = items.filter((item) => item.info.key !== 'done');
@@ -1076,13 +1201,23 @@ function render() {
   renderInsights(todayItems);
   renderMinutes();
   renderAnalytics(items);
+  renderContacts();
   renderList(items);
 }
 
 function renderMinutes() {
+  // Budget kommt pro Kunde aus dem Tenant. Kein Budget (0/leer) -> Kreis komplett ausblenden.
+  const budget = Number(currentTenant && currentTenant.minutes_budget) || 0;
+  const card = document.getElementById('minutes-ring-card');
+  if (budget <= 0) {
+    if (card) card.classList.add('hidden');
+    return;
+  }
+  if (card) card.classList.remove('hidden');
+
   const usedMin = calls.reduce((sum, c) => sum + callBillableMin(c), 0);
-  const left = Math.max(0, MINUTES_BUDGET - usedMin);
-  const frac = MINUTES_BUDGET > 0 ? Math.min(1, usedMin / MINUTES_BUDGET) : 0;
+  const left = Math.max(0, budget - usedMin);
+  const frac = budget > 0 ? Math.min(1, usedMin / budget) : 0;
   const pctRaw = frac * 100;
   const circ = 301.6; // 2 * PI * 48
   const ring = document.getElementById('ring-progress');
@@ -1095,7 +1230,7 @@ function renderMinutes() {
   const fmtMin = (m) => (m > 0 && m < 10) ? m.toFixed(1).replace('.', ',') : String(Math.round(m));
   const pctText = usedMin <= 0 ? '0%' : (pctRaw < 1 ? '<1%' : Math.round(pctRaw) + '%');
   const pctEl = document.getElementById('ring-pct'); if (pctEl) pctEl.textContent = pctText;
-  const txtEl = document.getElementById('ring-text'); if (txtEl) txtEl.textContent = fmtMin(usedMin) + ' von ' + MINUTES_BUDGET + ' Minuten genutzt';
+  const txtEl = document.getElementById('ring-text'); if (txtEl) txtEl.textContent = fmtMin(usedMin) + ' von ' + budget + ' Minuten genutzt';
   const leftEl = document.getElementById('ring-left'); if (leftEl) leftEl.textContent = fmtMin(left) + ' Minuten übrig';
 }
 
@@ -1131,6 +1266,146 @@ function renderAnalytics(items) {
         }).join('')
       : '<div class="empty">Noch keine Anrufe für die Analyse.</div>';
   }
+
+  // Ergebnisse (wie enden die Gespräche)
+  const outLabels = { done: 'Erledigt', callback: 'Rückruf', transfer: 'Weiterleitung', problem: 'Problemfall', live: 'Live' };
+  const outColors = { done: '#0f8a5f', callback: '#c96500', transfer: '#1d4ed8', problem: '#b42318', live: '#1d4ed8' };
+  const outCounts = {};
+  items.forEach((it) => { const k = it.info.key; outCounts[k] = (outCounts[k] || 0) + 1; });
+  const outEntries = Object.keys(outLabels).filter((k) => outCounts[k]).map((k) => [k, outCounts[k]]).sort((a, b) => b[1] - a[1]);
+  const outMax = Math.max(1, ...outEntries.map((e) => e[1]));
+  const outEl = document.getElementById('analytics-outcomes');
+  if (outEl) outEl.innerHTML = outEntries.length ? outEntries.map(([k, c]) => {
+    const w = Math.round((c / outMax) * 100); const share = Math.round((c / Math.max(1, total)) * 100);
+    return '<div class="bar-row"><div class="bar-top"><span>' + escHtml(outLabels[k]) + '</span><span>' + c + ' · ' + share + ' %</span></div><div class="bar-track"><div class="bar-fill" style="width:' + w + '%;background:' + outColors[k] + '"></div></div></div>';
+  }).join('') : '<div class="empty">Noch keine Daten.</div>';
+
+  // Anrufe pro Tag (letzte 7 Tage)
+  const days = []; const now = new Date();
+  for (let i = 6; i >= 0; i -= 1) { const d = new Date(now); d.setDate(now.getDate() - i); d.setHours(0, 0, 0, 0); days.push({ label: d.toLocaleDateString('de-DE', { weekday: 'short' }), start: d.getTime(), count: 0 }); }
+  calls.forEach((c) => { const t = callTimeMs(c); for (const day of days) { if (t >= day.start && t < day.start + 86400000) { day.count += 1; break; } } });
+  const dayMax = Math.max(1, ...days.map((d) => d.count));
+  const daysEl = document.getElementById('analytics-days');
+  if (daysEl) daysEl.innerHTML = days.map((d) => { const w = Math.round((d.count / dayMax) * 100); return '<div class="bar-row"><div class="bar-top"><span>' + escHtml(d.label) + '</span><span>' + d.count + '</span></div><div class="bar-track"><div class="bar-fill" style="width:' + w + '%"></div></div></div>'; }).join('');
+
+  // Uhrzeit-Verteilung (wann rufen Kunden an)
+  const hours = new Array(24).fill(0);
+  calls.forEach((c) => { const d = new Date(c.createdAt); if (!Number.isNaN(d.getTime())) hours[d.getHours()] += 1; });
+  const hourMax = Math.max(1, ...hours);
+  const hoursEl = document.getElementById('analytics-hours');
+  if (hoursEl) hoursEl.innerHTML = hours.map((h, i) => { const ht = Math.round((h / hourMax) * 100); const peak = h === hourMax && h > 0; return '<div class="hb' + (peak ? ' peak' : '') + '" style="height:' + Math.max(3, ht) + '%" title="' + i + ' Uhr: ' + h + ' Anrufe"></div>'; }).join('');
+}
+
+let currentView = 'overview';
+function setView(name) {
+  currentView = name;
+  ['overview', 'kunden', 'analyse', 'feedback'].forEach((v) => {
+    const el = document.getElementById('view-' + v);
+    if (el) el.classList.toggle('hidden', v !== name);
+  });
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.getAttribute('data-view') === name));
+  window.scrollTo(0, 0);
+}
+
+let showAllContacts = false;
+const DEFAULT_VISIBLE_CONTACTS = 8;
+function contactInitials(name, phone) {
+  const n = String(name || '').trim();
+  if (n) return n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  const p = String(phone || '').replace(/\D/g, '');
+  return p.slice(-2) || '?';
+}
+function buildContacts() {
+  const map = new Map();
+  calls.forEach((call) => {
+    const phone = String(call.phoneNumber || call.to_number || call.toNumber || '').trim();
+    if (!phone) return;
+    if (!map.has(phone)) map.set(phone, { phone: phone, name: '', calls: [], firstAt: null, lastAt: null });
+    const c = map.get(phone);
+    c.calls.push(call);
+    const nm = String(call.customerName || call.name || '').trim();
+    if (nm && !c.name) c.name = nm;
+    const t = callTimeMs(call);
+    if (!c.lastAt || t > c.lastAt) c.lastAt = t;
+    if (!c.firstAt || t < c.firstAt) c.firstAt = t;
+  });
+  const contacts = Array.from(map.values());
+  contacts.forEach((c) => {
+    c.callCount = c.calls.length;
+    c.calls.sort((a, b) => callTimeMs(b) - callTimeMs(a));
+    c.lastCall = c.calls[0];
+    c.hasOpen = c.calls.some((call) => classifyCall(call).key !== 'done');
+  });
+  contacts.sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
+  return contacts;
+}
+function toggleShowAllContacts() {
+  showAllContacts = !showAllContacts;
+  renderContacts();
+}
+function renderContacts() {
+  const listEl = document.getElementById('contacts-list');
+  const moreBtn = document.getElementById('more-contacts-btn');
+  const subEl = document.getElementById('contacts-sub');
+  if (!listEl) return;
+  const searchEl = document.getElementById('contact-search');
+  const q = String((searchEl && searchEl.value) || '').toLowerCase().trim();
+  let contacts = buildContacts();
+  const total = contacts.length;
+  if (subEl) subEl.textContent = total ? (total + ' Kunde' + (total === 1 ? '' : 'n') + ' insgesamt. Klicke einen Kunden für die Historie.') : 'Jeder Anrufer mit seiner Historie.';
+  if (q) contacts = contacts.filter((c) => c.phone.toLowerCase().includes(q) || (c.name || '').toLowerCase().includes(q));
+  if (!contacts.length) {
+    listEl.innerHTML = '<div class="empty">' + (total ? 'Kein Kunde gefunden.' : 'Noch keine Kunden.') + '</div>';
+    if (moreBtn) moreBtn.classList.add('hidden');
+    return;
+  }
+  const visible = showAllContacts ? contacts : contacts.slice(0, DEFAULT_VISIBLE_CONTACTS);
+  if (moreBtn) {
+    if (contacts.length <= DEFAULT_VISIBLE_CONTACTS) moreBtn.classList.add('hidden');
+    else { moreBtn.classList.remove('hidden'); moreBtn.textContent = showAllContacts ? 'Weniger zeigen' : ('Mehr Kunden zeigen (' + (contacts.length - DEFAULT_VISIBLE_CONTACTS) + ')'); }
+  }
+  listEl.innerHTML = visible.map((c) => {
+    const label = c.name || ('Kundin ' + c.phone);
+    const repeat = c.callCount > 1;
+    return '<div class="contact-row" onclick="openContact(\'' + escHtml(c.phone) + '\')" role="button" tabindex="0">'
+      + '<div class="contact-av ' + (c.hasOpen ? 'open' : '') + '">' + escHtml(contactInitials(c.name, c.phone)) + '</div>'
+      + '<div class="contact-main"><strong>' + escHtml(label) + '</strong><span>' + escHtml(c.phone) + '</span></div>'
+      + '<div class="contact-meta"><span class="contact-count ' + (repeat ? 'repeat' : '') + '">' + c.callCount + ' Anruf' + (c.callCount === 1 ? '' : 'e') + '</span><span class="contact-when">' + escHtml(fmtTime(new Date(c.lastAt).toISOString())) + '</span></div>'
+      + '</div>';
+  }).join('');
+}
+function openContact(phone) {
+  const c = buildContacts().find((x) => x.phone === phone);
+  if (!c) return;
+  const label = c.name || ('Kundin ' + c.phone);
+  document.getElementById('contact-title').textContent = label;
+  const subEl = document.getElementById('contact-sub');
+  if (subEl) subEl.textContent = c.phone;
+
+  const stats = '<div class="contact-stats">'
+    + '<div><em>Anrufe</em><b>' + c.callCount + '</b></div>'
+    + '<div><em>Erster Kontakt</em><b>' + escHtml(fmtTime(new Date(c.firstAt).toISOString())) + '</b></div>'
+    + '<div><em>Letzter Kontakt</em><b>' + escHtml(fmtTime(new Date(c.lastAt).toISOString())) + '</b></div>'
+    + '</div>';
+  const actions = '<div class="contact-actions">'
+    + '<button class="btn-mini primary" onclick="window.open(\'tel:' + escHtml(c.phone) + '\',\'_self\')">Anrufen</button>'
+    + '<button class="btn-mini" onclick="window.open(\'https://wa.me/' + whatsappNumber(c.phone) + '\',\'_blank\')">WhatsApp</button>'
+    + '</div>';
+  const timeline = '<div class="detail-section"><em>Verlauf</em><div class="timeline">'
+    + c.calls.map((call) => {
+        const info = classifyCall(call);
+        const idx = calls.indexOf(call);
+        return '<div class="tl-item" onclick="closeContact(); openDetail(' + idx + ')">'
+          + '<div class="tl-top"><span class="badge ' + escHtml(info.badge) + '">' + escHtml(info.label) + '</span><small>' + escHtml(fmtTime(call.createdAt)) + '</small></div>'
+          + '<p>' + escHtml(summaryFor(call)) + '</p></div>';
+      }).join('')
+    + '</div></div>';
+  document.getElementById('contact-body').innerHTML = stats + actions + timeline;
+  document.getElementById('contact-overlay').classList.remove('hidden');
+}
+function closeContact(event) {
+  if (event && event.target !== document.getElementById('contact-overlay')) return;
+  document.getElementById('contact-overlay').classList.add('hidden');
 }
 
 function toggleShowAllCalls() {

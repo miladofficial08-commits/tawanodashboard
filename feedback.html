@@ -49,6 +49,7 @@ p.sub{font-size:15px;color:#64748b;line-height:1.6;margin-bottom:24px}
 const params = new URLSearchParams(location.search);
 const phone = params.get('p') || '';
 const callId = params.get('c') || '';
+const tenantId = params.get('t') || '';
 let sending = false;
 async function send(rating) {
   if (sending) return;
@@ -59,7 +60,7 @@ async function send(rating) {
     const res = await fetch('/api/feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: phone, rating: rating, call_id: callId }),
+      body: JSON.stringify({ phone: phone, rating: rating, call_id: callId, tenant_id: tenantId }),
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     document.getElementById('form-view').style.display = 'none';

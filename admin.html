@@ -3,105 +3,302 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kunden verwalten - Admin</title>
+<title>Admin Control Center</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Manrope',sans-serif;background:linear-gradient(140deg,#eaf5ff,#f4f7fb);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px;color:#132238}
-.card{background:#fff;border:1px solid #dfe7f0;border-radius:20px;padding:28px 26px;max-width:520px;width:100%;box-shadow:0 18px 42px rgba(12,27,47,.08)}
-.brand{font-size:13px;font-weight:800;color:#0f8a5f;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
-h1{font-size:24px;margin-bottom:6px}
-p.sub{font-size:14px;color:#64748b;line-height:1.6;margin-bottom:22px}
-.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+body{font-family:'Manrope',sans-serif;background:#eef2f7;min-height:100vh;color:#132238}
+.top{background:#0f1b2d;color:#fff;padding:15px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:5}
+.top .brand{font-size:18px;font-weight:800}
+.top .brand small{display:block;font-size:11px;color:#8ba0bd;font-weight:700;letter-spacing:.5px}
+.top-actions{display:flex;gap:8px;align-items:center}
+.wrap{max-width:940px;margin:0 auto;padding:20px 16px 60px}
+.card{background:#fff;border:1px solid #e2e9f1;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 6px 20px rgba(12,27,47,.05)}
+h1{font-size:22px;margin-bottom:4px}h2{font-size:16px}
+p.sub{font-size:13px;color:#64748b;line-height:1.6;margin-bottom:16px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
 .field label{font-size:11px;font-weight:800;text-transform:uppercase;color:#4c607a}
-.field input{width:100%;border:1.5px solid #dfe7f0;border-radius:10px;padding:12px 13px;font-size:15px;outline:none}
-.field input:focus{border-color:#0f8a5f;box-shadow:0 0 0 4px rgba(15,138,95,.12)}
-.hint{font-size:12px;color:#8090a5;margin-top:2px}
-.btn{border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;background:#0f8a5f;color:#fff;width:100%;margin-top:4px}
+.field input,.field textarea{width:100%;border:1.5px solid #dfe7f0;border-radius:10px;padding:11px 12px;font-size:14px;outline:none;font-family:inherit}
+.field textarea{min-height:96px;resize:vertical;line-height:1.5}
+.field input:focus,.field textarea:focus{border-color:#0f8a5f;box-shadow:0 0 0 4px rgba(15,138,95,.12)}
+.hint{font-size:12px;color:#8090a5}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+.btn{border:none;border-radius:10px;padding:11px 15px;font-size:14px;font-weight:800;cursor:pointer}
+.btn-main{background:#0f8a5f;color:#fff}
+.btn-ghost{background:#fff;color:#334b67;border:1.5px solid #dfe7f0}
+.btn-open{background:#1d4ed8;color:#fff}
+.btn-del{background:#fff0f0;color:#b42318;border:1.5px solid #f3c8c8}
 .btn:disabled{opacity:.5;cursor:default}
-.msg{margin-top:16px;font-size:14px;font-weight:700;line-height:1.6;min-height:20px}
-.msg.ok{color:#0f8a5f}
-.msg.err{color:#b42318}
-.divider{height:1px;background:#eef3f8;margin:18px 0}
+.msg{margin-top:12px;font-size:14px;font-weight:700;min-height:18px}
+.msg.ok{color:#0f8a5f}.msg.err{color:#b42318}
+.hidden{display:none!important}
+/* Kunden-Kachel */
+.cust{background:#fff;border:1px solid #e2e9f1;border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 6px 20px rgba(12,27,47,.05)}
+.cust-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.cust-id{display:flex;align-items:center;gap:12px;min-width:0}
+.avatar{width:46px;height:46px;border-radius:12px;background:#e8f0ff;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex-shrink:0}
+.cust-id strong{font-size:17px;display:block}
+.cust-id span{font-size:12px;color:#66798f;font-weight:700;word-break:break-all}
+.cust-metrics{display:flex;gap:18px;text-align:center}
+.cust-metrics b{display:block;font-size:22px;color:#0f8a5f;line-height:1}
+.cust-metrics span{font-size:11px;color:#8090a5;font-weight:700;text-transform:uppercase}
+.toggles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+@media(max-width:560px){.toggles{grid-template-columns:1fr}}
+.tg{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;border:1px solid #e6eef7;border-radius:11px;background:#fbfdff}
+.tg .lbl{font-size:14px;font-weight:800}
+.tg .lbl small{display:block;font-size:11px;color:#8090a5;font-weight:700}
+.switch{position:relative;width:48px;height:27px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:#cbd5e1;border-radius:999px;cursor:pointer;transition:.2s}
+.slider:before{content:"";position:absolute;height:21px;width:21px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked+.slider{background:#0f8a5f}
+.switch input:checked+.slider:before{transform:translateX(21px)}
+details.det{border:1px solid #e6eef7;border-radius:11px;background:#fbfdff;padding:0 14px;margin-bottom:12px}
+details.det summary{cursor:pointer;font-size:13px;font-weight:800;color:#27415f;padding:12px 0;list-style:none}
+details.det summary::-webkit-details-marker{display:none}
+details.det summary:before{content:"▸ ";color:#8090a5}
+details.det[open] summary:before{content:"▾ "}
+details.det .inner{padding:4px 0 12px}
+.cust-actions{display:flex;gap:10px;flex-wrap:wrap}
+.cmsg{font-size:13px;font-weight:700;margin-top:10px;min-height:16px}
+.cmsg.ok{color:#0f8a5f}.cmsg.err{color:#b42318}
+.badge-off{font-size:11px;font-weight:800;color:#b42318;background:#fff0f0;padding:3px 8px;border-radius:999px}
+.cost{background:#0f1b2d;color:#fff;border-radius:12px;padding:13px 15px;margin-bottom:13px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.cost .total small{display:block;font-size:10px;color:#8ba0bd;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.cost .total b{font-size:22px}
+.cost .bd{display:flex;gap:16px;font-size:12px;color:#c7d4e6;font-weight:700;flex-wrap:wrap}
+.cost .bd b{color:#fff}
+.cost .bd span{white-space:nowrap}
+.atabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid #d7e0ea}
+.atab{background:none;border:none;padding:11px 16px;font-size:15px;font-weight:800;color:#64748b;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
+.atab.active{color:#0f8a5f;border-bottom-color:#0f8a5f}
+.numcard{background:#fff;border:1px solid #e2e9f1;border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 6px 20px rgba(12,27,47,.05)}
+.numcard .nhead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.numcard .num{font-size:19px;font-weight:800}
+.numcard .who{font-size:12px;color:#66798f;font-weight:700}
+.numcard .ntotal{font-size:24px;font-weight:800;color:#0f8a5f}
+.numcard .ntotal small{display:block;font-size:10px;color:#8090a5;font-weight:800;text-transform:uppercase;text-align:right}
+.nbd{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.nbd div{border:1px solid #e6eef7;border-radius:10px;background:#fbfdff;padding:11px 12px;text-align:center}
+.nbd em{display:block;font-style:normal;font-size:10px;font-weight:800;text-transform:uppercase;color:#73839a;margin-bottom:4px}
+.nbd b{font-size:16px;color:#132238}
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="brand">Admin</div>
-  <h1>Neuen Kunden anlegen</h1>
-  <p class="sub">Legt Login + Kunde + Voice Agent in einem Schritt an. Der Kunde loggt sich danach ein und sieht nur seine eigenen Daten.</p>
+<div class="top"><div class="brand">Admin Control Center<small>ALLE KUNDEN AN EINEM ORT</small></div><div class="top-actions"><span id="top-info" style="color:#8ba0bd;font-size:13px;font-weight:700"></span></div></div>
 
-  <div class="field">
-    <label>Admin-Passwort</label>
-    <input id="admin_secret" type="password" placeholder="ADMIN_SECRET" autocomplete="off">
-    <div class="hint">Dein geheimes Admin-Passwort (in Netlify als ADMIN_SECRET hinterlegt).</div>
-  </div>
-  <div class="divider"></div>
-
-  <div class="field">
-    <label>Firmenname des Kunden</label>
-    <input id="name" type="text" placeholder="Beauty World Duesseldorf">
-  </div>
-  <div class="field">
-    <label>Login E-Mail</label>
-    <input id="email" type="email" placeholder="kunde@example.de" autocomplete="off">
-  </div>
-  <div class="field">
-    <label>Passwort fuer den Kunden</label>
-    <input id="password" type="text" placeholder="mind. 8 Zeichen" autocomplete="off">
-    <div class="hint">Dieses Passwort gibst du dem Kunden weiter.</div>
-  </div>
-  <div class="field">
-    <label>Voice Agent ID</label>
-    <input id="agent_id" type="text" placeholder="agent_xxxxxxxxxxxx">
-  </div>
-  <div class="field">
-    <label>Telefonnummer (optional)</label>
-    <input id="from_number" type="tel" placeholder="+49...">
-  </div>
-  <div class="field">
-    <label>Buchungslink (optional)</label>
-    <input id="booking_link" type="url" placeholder="https://...">
+<div class="wrap">
+  <!-- Login -->
+  <div id="login-card" class="card" style="max-width:420px;margin:40px auto">
+    <h1>Admin-Login</h1>
+    <p class="sub">Admin-Passwort eingeben, um alle Kunden zu verwalten.</p>
+    <div class="field"><label>Admin-Passwort</label><input id="admin_secret" type="password" placeholder="ADMIN_SECRET" autocomplete="off"></div>
+    <button class="btn btn-main" style="width:100%" onclick="login()">Einloggen</button>
+    <div id="login-msg" class="msg"></div>
   </div>
 
-  <button id="submit" class="btn" onclick="createCustomer()">Kunde anlegen</button>
-  <div id="msg" class="msg"></div>
+  <!-- App -->
+  <div id="app" class="hidden">
+    <div class="atabs">
+      <button id="atab-customers" class="atab active" onclick="setAdminView('customers')">Kunden</button>
+      <button id="atab-numbers" class="atab" onclick="setAdminView('numbers')">Kosten pro Nummer</button>
+    </div>
+
+    <div id="view-customers">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+      <div><h1 style="margin:0">Kunden</h1><p class="sub" style="margin:0" id="cust-count">Wird geladen...</p></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-ghost" onclick="loadCustomers()">Aktualisieren</button><button class="btn btn-main" onclick="toggleCreate()">+ Neuer Kunde</button></div>
+    </div>
+
+    <!-- Create (collapsible) -->
+    <div id="create-card" class="card hidden">
+      <h2>Neuen Kunden anlegen</h2>
+      <p class="sub">Login + Kunde + Voice Agent in einem Schritt. Der Datensatz wird sofort in Supabase angelegt und ist von allen anderen getrennt.</p>
+      <div class="grid2">
+        <div class="field"><label>Firmenname</label><input id="c-name" placeholder="Beauty World Duesseldorf"></div>
+        <div class="field"><label>Login E-Mail</label><input id="c-email" type="email" placeholder="kunde@example.de" autocomplete="off"></div>
+        <div class="field"><label>Passwort (min. 8)</label><input id="c-password" placeholder="Passwort" autocomplete="off"></div>
+        <div class="field"><label>Voice Agent ID</label><input id="c-agent" placeholder="agent_xxxxx"></div>
+        <div class="field"><label>Telefonnummer</label><input id="c-phone" placeholder="+49..."></div>
+        <div class="field"><label>Buchungslink</label><input id="c-booking" placeholder="https://..."></div>
+      </div>
+      <button class="btn btn-main" onclick="createCustomer()">Kunde anlegen</button>
+      <div id="create-msg" class="msg"></div>
+    </div>
+
+    <div id="customers"></div>
+    </div>
+
+    <div id="view-numbers" class="hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div><h1 style="margin:0">Kosten pro Telefonnummer</h1><p class="sub" style="margin:0" id="num-sub">Echte Kosten je Nummer aus allen Anrufen.</p></div>
+        <button class="btn btn-ghost" onclick="loadNumbers()">Aktualisieren</button>
+      </div>
+      <div id="numbers-list"><p class="sub">Wird geladen...</p></div>
+    </div>
+  </div>
 </div>
+
 <script>
-function val(id){ return (document.getElementById(id).value || '').trim(); }
-async function createCustomer(){
-  const btn = document.getElementById('submit');
-  const msg = document.getElementById('msg');
-  msg.className = 'msg'; msg.textContent = '';
-  const payload = {
-    admin_secret: val('admin_secret'),
-    name: val('name'),
-    email: val('email'),
-    password: val('password'),
-    agent_id: val('agent_id'),
-    from_number: val('from_number'),
-    booking_link: val('booking_link'),
-  };
-  if(!payload.admin_secret || !payload.name || !payload.email || !payload.password || !payload.agent_id){
-    msg.className = 'msg err'; msg.textContent = 'Bitte Admin-Passwort, Firmenname, E-Mail, Passwort und Agent ID ausfuellen.'; return;
-  }
-  btn.disabled = true; btn.textContent = 'Wird angelegt...';
-  try{
-    const res = await fetch('/api/admin/create-customer', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-    });
-    const data = await res.json().catch(()=>({}));
-    if(!res.ok || !data.ok){ throw new Error(data.message || ('HTTP '+res.status)); }
-    msg.className = 'msg ok';
-    msg.textContent = 'Erledigt. ' + payload.name + ' kann sich jetzt mit ' + payload.email + ' einloggen.';
-    ['name','email','password','agent_id','from_number','booking_link'].forEach(id=>{ document.getElementById(id).value=''; });
-  }catch(e){
-    msg.className = 'msg err'; msg.textContent = 'Fehler: ' + (e.message || e);
-  }finally{
-    btn.disabled = false; btn.textContent = 'Kunde anlegen';
-  }
+let ADMIN = '';
+function api(path, payload) {
+  return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ admin_secret: ADMIN }, payload || {})) })
+    .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok || !d.ok) throw new Error(d.message || ('HTTP ' + r.status)); return d; });
 }
+function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt(iso){ if(!iso) return '-'; return new Date(iso).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+function initials(name){ const p=String(name||'').trim().split(/\s+/); return ((p[0]||'')[0]||'?').toUpperCase()+((p[1]||'')[0]||'').toUpperCase(); }
+function money(n){ return (Number(n)||0).toFixed(2).replace('.',',')+' €'; }
+
+async function login() {
+  const m=document.getElementById('login-msg'); m.className='msg'; m.textContent='';
+  ADMIN=(document.getElementById('admin_secret').value||'').trim();
+  if(!ADMIN){ m.className='msg err'; m.textContent='Bitte Passwort eingeben.'; return; }
+  try {
+    await loadCustomers();
+    document.getElementById('login-card').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('top-info').textContent='Eingeloggt';
+  } catch(e){ ADMIN=''; m.className='msg err'; m.textContent='Login fehlgeschlagen: '+(e.message||e); }
+}
+function toggleCreate(){ document.getElementById('create-card').classList.toggle('hidden'); }
+
+async function loadCustomers() {
+  const data=await api('/api/admin/list-customers');
+  const list=data.customers||[];
+  document.getElementById('cust-count').textContent=list.length+' Kunde'+(list.length===1?'':'n')+' – jeder mit eigenem, getrenntem Datensatz';
+  document.getElementById('customers').innerHTML = list.map(renderCustomer).join('') || '<div class="card"><p class="sub" style="margin:0">Noch keine Kunden. Lege oben den ersten an.</p></div>';
+}
+
+function setAdminView(name) {
+  document.getElementById('view-customers').classList.toggle('hidden', name !== 'customers');
+  document.getElementById('view-numbers').classList.toggle('hidden', name !== 'numbers');
+  document.getElementById('atab-customers').classList.toggle('active', name === 'customers');
+  document.getElementById('atab-numbers').classList.toggle('active', name === 'numbers');
+  if (name === 'numbers') loadNumbers();
+}
+async function loadNumbers() {
+  const el = document.getElementById('numbers-list');
+  el.innerHTML = '<p class="sub">Wird geladen...</p>';
+  try {
+    const d = await api('/api/admin/cost-numbers');
+    const list = d.numbers || [];
+    const tot = d.totals || {};
+    document.getElementById('num-sub').textContent = 'Nur zugeordnete Kunden-Nummern. Basierend auf den letzten ' + (d.based_on_calls || 0) + ' Anrufen.';
+    const banner = '<div class="cost" style="margin-bottom:16px">'
+      + '<div class="total"><small>Gesamtkosten ALLER Nummern</small><b>' + money(tot.total) + '</b></div>'
+      + '<div class="bd"><span>Anrufe: <b>' + (tot.calls || 0) + '</b></span><span>Twilio: <b>' + money(tot.twilio) + '</b></span><span>Retell: <b>' + money(tot.retell) + '</b></span><span>SMS: <b>' + money(tot.sms) + '</b></span></div></div>';
+    el.innerHTML = banner + (list.map(renderNumber).join('') || '<div class="card"><p class="sub" style="margin:0">Keine Kunden-Nummern.</p></div>');
+  } catch (e) { el.innerHTML = '<div class="card"><p class="msg err" style="margin:0">Fehler: ' + (e.message || e) + '</p></div>'; }
+}
+function renderNumber(n) {
+  return '<div class="numcard">'
+    + '<div class="nhead"><div><div class="num">' + esc(n.number) + '</div><div class="who">' + esc((n.customers || []).join(', ') || 'kein Kunde zugeordnet') + '</div></div>'
+    + '<div class="ntotal">' + money(n.total) + '<small>Gesamt bisher</small></div></div>'
+    + '<div class="nbd">'
+      + '<div><em>Anrufe</em><b>' + (n.connected_calls || 0) + '</b></div>'
+      + '<div><em>Abger. Min</em><b>' + (n.billed_minutes || 0) + '</b></div>'
+      + '<div><em>Twilio (' + money(n.twilio_rate) + '/Min)</em><b>' + money(n.twilio) + '</b></div>'
+      + '<div><em>Retell</em><b>' + money(n.retell) + '</b></div>'
+      + '<div><em>SMS</em><b>' + money(n.sms) + '</b></div>'
+    + '</div></div>';
+}
+function costBlock(c) {
+  const co = c.cost || {};
+  const capped = co.capped ? '<div class="hint" style="margin:-8px 0 12px">Kosten der letzten 500 Anrufe.</div>' : '';
+  return '<div class="cost">'
+    + '<div class="total"><small>Bisher genutzt (diese Nummer)</small><b>' + money(co.total) + '</b></div>'
+    + '<div class="bd">'
+      + '<span>Anrufe: <b>' + (co.connected_calls || 0) + '</b></span>'
+      + '<span>Retell: <b>' + money(co.retell) + '</b></span>'
+      + '<span>Twilio: <b>' + money(co.twilio) + '</b> (' + (co.billed_minutes || 0) + ' Min à ' + money(co.twilio_rate) + ')</span>'
+      + '<span>SMS: <b>' + (co.sms_count || 0) + '</b> (' + money(co.sms) + ')</span>'
+    + '</div></div>' + capped;
+}
+function renderCustomer(c) {
+  const st=c.stats||{};
+  const minOn=Number(c.minutes_budget)>0;
+  const smsOn=c.sms_enabled!==false;
+  return '<div class="cust" data-id="'+esc(c.id)+'">'
+    + '<div class="cust-top">'
+      + '<div class="cust-id"><div class="avatar">'+esc(initials(c.name))+'</div>'
+        + '<div><strong>'+esc(c.name)+'</strong><span>'+esc(c.retell_agent_id||'kein Agent')+(c.retell_from_number?' · '+esc(c.retell_from_number):'')+'</span></div></div>'
+      + '<div class="cust-metrics"><div><b>'+(st.calls||0)+'</b><span>Anrufe</span></div><div><b style="font-size:14px;color:#48607d">'+esc(fmt(st.lastAt))+'</b><span>zuletzt</span></div></div>'
+    + '</div>'
+    + '<div class="toggles">'
+      + '<div class="tg"><div class="lbl">Live-Minuten<small>Testphase</small></div><label class="switch"><input type="checkbox" class="min-toggle" '+(minOn?'checked':'')+'><span class="slider"></span></label></div>'
+      + '<div class="tg"><div class="lbl">SMS nach Anruf</div><label class="switch"><input type="checkbox" class="sms-toggle" '+(smsOn?'checked':'')+'><span class="slider"></span></label></div>'
+    + '</div>'
+    + '<div class="field" style="margin-bottom:12px"><label>Minuten-Budget (nur wenn Live-Minuten an)</label><input class="f-minutes" type="number" value="'+esc(minOn?c.minutes_budget:'')+'" placeholder="z. B. 200"></div>'
+    + '<details class="det"><summary>Einstellungen & SMS-Nachricht bearbeiten</summary><div class="inner">'
+      + '<div class="grid2"><div class="field"><label>Voice Agent ID</label><input class="f-agent" value="'+esc(c.retell_agent_id)+'"></div>'
+      + '<div class="field"><label>Telefonnummer</label><input class="f-phone" value="'+esc(c.retell_from_number)+'"></div></div>'
+      + '<div class="field"><label>Buchungslink</label><input class="f-booking" value="'+esc(c.booking_link_url)+'"></div>'
+      + '<div class="field"><label>SMS-Nachricht ({booking_link} = Link, {feedback_link} = Bewertung)</label><textarea class="f-sms">'+esc(c.sms_template)+'</textarea></div>'
+    + '</div></details>'
+    + '<div class="cust-actions"><button class="btn btn-open" onclick="openDashboard(this)">Dashboard öffnen</button>'
+      + '<button class="btn btn-main" onclick="saveCustomer(this)">Speichern</button>'
+      + '<button class="btn btn-del" onclick="deleteCustomer(this)">Löschen</button></div>'
+    + '<div class="cmsg"></div>'
+    + '</div>';
+}
+
+async function saveCustomer(btn) {
+  const card=btn.closest('.cust'), id=card.getAttribute('data-id');
+  const msg=card.querySelector('.cmsg'); msg.className='cmsg'; msg.textContent='';
+  const minOn=card.querySelector('.min-toggle').checked;
+  const payload={ tenant_id:id,
+    minutes_budget: minOn?(Number(card.querySelector('.f-minutes').value)||0):0,
+    sms_enabled: card.querySelector('.sms-toggle').checked,
+    sms_template: card.querySelector('.f-sms').value,
+    retell_agent_id: card.querySelector('.f-agent').value,
+    retell_from_number: card.querySelector('.f-phone').value,
+    booking_link_url: card.querySelector('.f-booking').value };
+  btn.disabled=true; btn.textContent='Speichert...';
+  try { await api('/api/admin/update-customer',payload); msg.className='cmsg ok'; msg.textContent='Gespeichert.'; }
+  catch(e){ msg.className='cmsg err'; msg.textContent='Fehler: '+(e.message||e); }
+  finally { btn.disabled=false; btn.textContent='Speichern'; }
+}
+
+async function openDashboard(btn) {
+  const card=btn.closest('.cust'), id=card.getAttribute('data-id');
+  const msg=card.querySelector('.cmsg'); msg.className='cmsg'; msg.textContent='Session wird erstellt...';
+  btn.disabled=true;
+  try {
+    const d=await api('/api/admin/impersonate',{tenant_id:id});
+    // Token nur ueber die URL (pro Tab) - kein gemeinsamer Speicher -> keine Datenvermischung.
+    const u='/Dashboardkunde.html#admin_token='+encodeURIComponent(d.accessToken)+'&admin_email='+encodeURIComponent((d.user&&d.user.email)||'');
+    window.open(u,'_blank');
+    msg.className='cmsg ok'; msg.textContent='Dashboard in neuem Tab geoeffnet.';
+  } catch(e){ msg.className='cmsg err'; msg.textContent='Fehler: '+(e.message||e); }
+  finally { btn.disabled=false; }
+}
+
+async function deleteCustomer(btn) {
+  const card=btn.closest('.cust'), id=card.getAttribute('data-id');
+  const name=card.querySelector('.cust-id strong').textContent;
+  if(!confirm('Kunde "'+name+'" wirklich löschen? Login, Daten und Zugang werden dauerhaft aus Supabase entfernt.')) return;
+  const msg=card.querySelector('.cmsg'); msg.className='cmsg'; msg.textContent='Wird geloescht...';
+  btn.disabled=true;
+  try { await api('/api/admin/delete-customer',{tenant_id:id}); card.remove(); }
+  catch(e){ msg.className='cmsg err'; msg.textContent='Fehler: '+(e.message||e); btn.disabled=false; }
+}
+
+async function createCustomer() {
+  const m=document.getElementById('create-msg'); m.className='msg'; m.textContent='';
+  const v=(id)=>(document.getElementById(id).value||'').trim();
+  const payload={ name:v('c-name'), email:v('c-email'), password:v('c-password'), agent_id:v('c-agent'), from_number:v('c-phone'), booking_link:v('c-booking') };
+  if(!payload.name||!payload.email||!payload.password||!payload.agent_id){ m.className='msg err'; m.textContent='Bitte Firmenname, E-Mail, Passwort und Agent ID ausfuellen.'; return; }
+  try {
+    await api('/api/admin/create-customer',payload);
+    m.className='msg ok'; m.textContent='Kunde angelegt: '+payload.email;
+    ['c-name','c-email','c-password','c-agent','c-phone','c-booking'].forEach((id)=>{ document.getElementById(id).value=''; });
+    loadCustomers();
+  } catch(e){ m.className='msg err'; m.textContent='Fehler: '+(e.message||e); }
+}
+document.getElementById('admin_secret').addEventListener('keydown',(e)=>{ if(e.key==='Enter') login(); });
 </script>
 </body>
 </html>

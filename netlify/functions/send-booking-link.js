@@ -1,6 +1,4 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const { envValue, insertRow, isMissingSchemaError, json, readBody, resolveTenantFromToolBody } = require('./_lib/tenant');
+const { envValue, insertRow, json, readBody, resolveTenantFromToolBody, getTenantSettings, saveTenantSettings } = require('./_lib/tenant');
 
 // ============================================================
 //  HIER ANPASSEN — Buchungslink & SMS-Text
@@ -150,6 +148,13 @@ exports.handler = async (event) => {
     return String((dir === 'outbound' ? c.to_number : c.from_number) || c.from_number || c.to_number || '').trim();
   };
 
+  // Fuer die Tenant-Zuordnung/Logs: welche Geschaeftsnummer wurde angerufen?
+  const calledBusinessNumberFrom = (c) => {
+    if (!c) return '';
+    const dir = String(c.direction || '').toLowerCase();
+    return String((dir === 'outbound' ? c.from_number : c.to_number) || c.to_number || c.from_number || '').trim();
+  };
+
   // Telefonnummer ermitteln. Die KI schickt manchmal einen Platzhalter wie
   // "<EINGEHENDE_NUMMER>" – solche Werte verwerfen und die echte Anrufer-Nummer nehmen.
   let phone = String(body.phone_number || body.phoneNumber || body.phone || '').trim();
@@ -164,19 +169,40 @@ exports.handler = async (event) => {
     return json(400, { ok: false, message: 'Keine gueltige Telefonnummer gefunden. In Retell muss bei dieser Funktion "Payload: args only" AUS sein, damit die Anrufer-Nummer mitgesendet wird.' });
   }
 
+  // Kunden-Einstellungen (SMS-Schalter + eigene Nachricht) aus dem Admin-Control-Center.
+  let tSettings = {};
+  try { tSettings = await getTenantSettings(tenant && tenant.id, { serviceRole: true }); } catch (_) { tSettings = {}; }
+  if (tSettings.sms_enabled === false) {
+    return json(200, { ok: false, status: 'disabled', message: 'SMS ist fuer diesen Kunden deaktiviert.', to: phone });
+  }
+
   const bookingLink = String(body.booking_link || body.bookingLink || tenant.booking_link_url || envValue('BOOKING_LINK_URL') || DEFAULT_BOOKING_LINK || '').trim();
   const name = String(body.customer_name || body.customerName || '').trim();
+  const calledNumber = String(
+    body.called_number
+    || body.system_number
+    || body.systemNumber
+    || calledBusinessNumberFrom(callInfo)
+    || calledBusinessNumberFrom(tenantContext.call)
+    || tenant.retell_from_number
+    || ''
+  ).trim();
+  const resolvedAgentId = String(body.agent_id || (tenantContext.call && tenantContext.call.agent_id) || tenant.retell_agent_id || '').trim();
 
   // Eigener Feedback-Link mit der Kundennummer (und Call-ID, falls vorhanden) - klar getrennt vom Buchungslink.
   const feedbackLink = FEEDBACK_BASE_URL
-    ? (FEEDBACK_BASE_URL + '?p=' + encodeURIComponent(phone) + (body.call_id ? '&c=' + encodeURIComponent(body.call_id) : ''))
+    ? (FEEDBACK_BASE_URL
+      + '?p=' + encodeURIComponent(phone)
+      + '&t=' + encodeURIComponent(tenant.id)
+      + (body.call_id ? '&c=' + encodeURIComponent(body.call_id) : ''))
     : '';
 
-  const template = envValue('SMS_AFTER_CALL_TEMPLATE').trim() || DEFAULT_SMS_TEMPLATE;
-  let message = String(body.message || template)
-    .replace('{booking_link}', bookingLink || '')
-    .replace('{feedback_link}', feedbackLink || '')
-    .replace('{customer_name}', name || '');
+  const template = String(tSettings.sms_template || '').trim() || DEFAULT_SMS_TEMPLATE;
+  // Wichtig: Der SMS-Text wird ausschliesslich zentral aus dem Admin/Supabase-Template gebaut.
+  let message = String(template)
+    .replaceAll('{booking_link}', bookingLink || '')
+    .replaceAll('{feedback_link}', feedbackLink || '')
+    .replaceAll('{customer_name}', name || '');
   // If booking link exists but template didn't contain the placeholder, append it
   if (bookingLink && !message.includes(bookingLink)) {
     message = message.trimEnd() + ' Hier buchen: ' + bookingLink;
@@ -203,7 +229,7 @@ exports.handler = async (event) => {
     }
     try {
       const firstMsg = result.response && Array.isArray(result.response.messages) ? result.response.messages[0] : null;
-      await insertRow('sms_logs', {
+      const baseLog = {
         tenant_id: tenant.id,
         phone_number: phone,
         customer_name: name || null,
@@ -212,10 +238,32 @@ exports.handler = async (event) => {
         provider: result.provider || 'unknown',
         provider_message_id: (firstMsg && firstMsg.id) || (result.response && (result.response.id || result.response.message_id)) || null,
         status: result.sent ? 'sent' : 'queued',
-      }, { serviceRole: true });
+      };
+      try {
+        await insertRow('sms_logs', Object.assign({}, baseLog, {
+          called_number: calledNumber || null,
+          retell_agent_id: resolvedAgentId || null,
+          call_id: String(body.call_id || '').trim() || null,
+        }), { serviceRole: true });
+      } catch (_) {
+        // Rueckfall fuer Altdatenbank ohne neue Spalten.
+        await insertRow('sms_logs', baseLog, { serviceRole: true });
+      }
     } catch (error) {
       // Protokollierung in sms_logs ist optional (z. B. RLS-Policy oder fehlende Tabelle).
       // Ein Fehler hier darf den eigentlichen SMS-Versand NIEMALS fehlschlagen lassen.
+    }
+    // Fuer die Kostenrechnung im Admin: gesendete SMS + echten seven.io-Preis pro Kunde mitzaehlen.
+    if (result.sent && tenant && tenant.id) {
+      try {
+        const cur = await getTenantSettings(tenant.id, { serviceRole: true });
+        const firstMsg2 = result.response && Array.isArray(result.response.messages) ? result.response.messages[0] : null;
+        const price = (firstMsg2 && Number(firstMsg2.price)) || 0;
+        await saveTenantSettings(tenant.id, {
+          sms_sent_count: (Number(cur.sms_sent_count) || 0) + 1,
+          sms_cost_total: (Number(cur.sms_cost_total) || 0) + price,
+        }, { serviceRole: true });
+      } catch (_) { /* Zaehler optional */ }
     }
     return json(result.sent ? 200 : 502, {
       ok: result.sent,

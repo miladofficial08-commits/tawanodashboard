@@ -68,6 +68,36 @@ status = 200
 force = true
 
 [[redirects]]
+from = "/api/admin/list-customers"
+to = "/.netlify/functions/admin-list-customers"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/admin/update-customer"
+to = "/.netlify/functions/admin-update-customer"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/admin/impersonate"
+to = "/.netlify/functions/admin-impersonate"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/admin/delete-customer"
+to = "/.netlify/functions/admin-delete-customer"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/admin/cost-numbers"
+to = "/.netlify/functions/admin-cost-numbers"
+status = 200
+force = true
+
+[[redirects]]
 from = "/admin"
 to = "/admin.html"
 status = 200
