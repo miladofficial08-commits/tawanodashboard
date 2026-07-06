@@ -23,8 +23,12 @@ const FEEDBACK_BASE_URL = 'https://tawanodashboard.netlify.app/feedback';
 // 5) HARTE UEBERSTEUERUNG PRO GESCHAEFTSNUMMER (angerufene Nummer).
 //    Genau HIER kannst du fuer einzelne Nummern eine eigene SMS fest eintragen.
 //    Diese Vorlage gewinnt IMMER vor Admin/Supabase.
-const SMS_TEMPLATE_BY_CALLED_NUMBER = {
-  '+4921186943411': 'Vielen Dank fuer Ihren Testanruf bei Tawano.\n\nSie haben gerade eine Demo eines digitalen Telefonmitarbeiters getestet.\n\nBuchungslink:\n{booking_link}\n\nBewertung:\n{feedback_link}',
+const SMS_CONFIG_BY_CALLED_NUMBER = {
+  '+4921186943411': {
+    sms_sender: 'Tawano',
+    booking_link: 'https://www.tawano.de/demo',
+    sms_template: 'Vielen Dank für Ihren Testanruf bei Tawano.\n\nSie haben gerade eine Demo eines digitalen Mitarbeiters getestet.\n\nDemo-Link:\n{booking_link}\n\nIhr Tawano Team',
+  },
 };
 // ============================================================
 
