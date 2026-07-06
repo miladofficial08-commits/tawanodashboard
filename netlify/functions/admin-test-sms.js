@@ -21,11 +21,12 @@ function checkAdmin(event, body) {
 const DEFAULT_SMS_FROM = 'Tawano';
 const FEEDBACK_BASE_URL = 'https://tawanodashboard.netlify.app/feedback';
 
-async function sendViaSeven(to, messageText) {
+async function sendViaSeven(to, messageText, smsSender) {
   const apiKey = envValue('SEVEN_API_KEY').trim();
   if (!apiKey) return { sent: false, reason: 'SEVEN_API_KEY fehlt' };
 
-  const smsFrom = envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
+  // Prioritaet: tenant.sms_sender > SMS_FROM env > Default.
+  const smsFrom = String(smsSender || '').trim() || envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
   const body = { to, text: messageText, json: 1 };
   if (smsFrom) body.from = smsFrom;
 
@@ -70,12 +71,13 @@ exports.handler = async (event) => {
   const bookingLink = String(tenant.booking_link_url || '').trim();
   const feedbackLink = FEEDBACK_BASE_URL ? FEEDBACK_BASE_URL + '?p=' + encodeURIComponent(toNumber) + '&t=' + encodeURIComponent(tenantId) : '';
 
+  const smsSender = String(tenant.sms_sender || '').trim();
   const message = String(template)
     .replaceAll('{booking_link}', bookingLink)
     .replaceAll('{feedback_link}', feedbackLink)
     .replaceAll('{customer_name}', 'Testperson');
 
-  const result = await sendViaSeven(toNumber, message);
+  const result = await sendViaSeven(toNumber, message, smsSender);
   return json(result.sent ? 200 : 502, {
     ok: result.sent,
     tenant: { id: tenant.id, name: tenant.name },

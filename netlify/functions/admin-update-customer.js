@@ -14,12 +14,13 @@ exports.handler = async (event) => {
   const tenantId = String(body.tenant_id || '').trim();
   if (!tenantId) return json(400, { ok: false, message: 'tenant_id fehlt.' });
 
-  // 1) Echte Tenant-Spalten (Name, Agent, Nummer, Buchungslink) direkt aktualisieren.
+  // 1) Echte Tenant-Spalten (Name, Agent, Nummer, Buchungslink, SMS-Absender) direkt aktualisieren.
   const patch = {};
   if (body.name !== undefined) patch.name = String(body.name).trim();
   if (body.retell_agent_id !== undefined) patch.retell_agent_id = String(body.retell_agent_id).trim() || null;
   if (body.retell_from_number !== undefined) patch.retell_from_number = String(body.retell_from_number).trim() || null;
   if (body.booking_link_url !== undefined) patch.booking_link_url = String(body.booking_link_url).trim() || null;
+  if (body.sms_sender !== undefined) patch.sms_sender = String(body.sms_sender).trim() || null;
   if (body.is_active !== undefined) patch.is_active = Boolean(body.is_active);
 
   // 2) Einstellungen (Minuten, SMS) als Snapshot speichern - kein DB-Umbau noetig.

@@ -89,6 +89,7 @@ exports.handler = async (event) => {
       retell_agent_id: t.retell_agent_id || '',
       retell_from_number: t.retell_from_number || '',
       booking_link_url: t.booking_link_url || '',
+      sms_sender: t.sms_sender || '',
       minutes_budget: Number(settings.minutes_budget) || 0,
       sms_enabled: settings.sms_enabled !== false,
       sms_template: effectiveSms,

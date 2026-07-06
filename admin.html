@@ -236,6 +236,7 @@ function renderCustomer(c) {
       + '<div class="grid2"><div class="field"><label>Voice Agent ID</label><input class="f-agent" value="'+esc(c.retell_agent_id)+'"></div>'
       + '<div class="field"><label>Telefonnummer</label><input class="f-phone" value="'+esc(c.retell_from_number)+'"></div></div>'
       + '<div class="field"><label>Buchungslink</label><input class="f-booking" value="'+esc(c.booking_link_url)+'"></div>'
+      + '<div class="field"><label>SMS-Absender (Name max. 11 Zeichen <b>oder</b> +49… Nummer für Feedback-Antworten)</label><input class="f-sender" placeholder="z. B. BeautyWorld" value="'+esc(c.sms_sender)+'"></div>'
       + '<div class="field"><label>SMS-Nachricht ({booking_link} = Link, {feedback_link} = Bewertung)</label><textarea class="f-sms">'+esc(c.sms_template)+'</textarea></div>'
     + '</div></details>'
     + '<div class="cust-actions"><button class="btn btn-open" onclick="openDashboard(this)">Dashboard öffnen</button>'
@@ -255,7 +256,8 @@ async function saveCustomer(btn) {
     sms_template: card.querySelector('.f-sms').value,
     retell_agent_id: card.querySelector('.f-agent').value,
     retell_from_number: card.querySelector('.f-phone').value,
-    booking_link_url: card.querySelector('.f-booking').value };
+    booking_link_url: card.querySelector('.f-booking').value,
+    sms_sender: card.querySelector('.f-sender').value };
   btn.disabled=true; btn.textContent='Speichert...';
   try { await api('/api/admin/update-customer',payload); msg.className='cmsg ok'; msg.textContent='Gespeichert.'; }
   catch(e){ msg.className='cmsg err'; msg.textContent='Fehler: '+(e.message||e); }

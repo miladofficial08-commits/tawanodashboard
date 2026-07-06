@@ -62,7 +62,8 @@ async function sendViaSeven(payload) {
     return { sent: false, provider: 'seven', message: 'SEVEN_API_KEY nicht gesetzt' };
   }
 
-  const smsFrom = envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
+  // Prioritaet: tenant.sms_sender (pro Kunde) > SMS_FROM env (global) > Default-Name.
+  const smsFrom = String(payload.sms_sender || '').trim() || envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
   const body = {
     to: payload.to,
     text: payload.message,
@@ -208,6 +209,9 @@ exports.handler = async (event) => {
     message = message.trimEnd() + ' Hier buchen: ' + bookingLink;
   }
 
+  // Absender: sms_sender aus Supabase-Tenant hat hoechste Prioritaet.
+  const smsSender = String(tenant.sms_sender || '').trim() || envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
+
   const payload = {
     type: 'send_booking_link',
     tenant_id: tenant.id,
@@ -215,6 +219,7 @@ exports.handler = async (event) => {
     customer_name: name,
     booking_link: bookingLink,
     message,
+    sms_sender: smsSender,
     source: 'retell_tool',
     created_at: new Date().toISOString(),
   };
