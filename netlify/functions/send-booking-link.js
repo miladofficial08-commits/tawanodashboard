@@ -19,6 +19,13 @@ const DEFAULT_SMS_FROM = 'Beautyworld';
 
 // 4) Feedback-Seite (eigener, klar getrennter Link). Leer lassen ('') = kein Feedback-Link in der SMS.
 const FEEDBACK_BASE_URL = 'https://tawanodashboard.netlify.app/feedback';
+
+// 5) HARTE UEBERSTEUERUNG PRO GESCHAEFTSNUMMER (angerufene Nummer).
+//    Genau HIER kannst du fuer einzelne Nummern eine eigene SMS fest eintragen.
+//    Diese Vorlage gewinnt IMMER vor Admin/Supabase.
+const SMS_TEMPLATE_BY_CALLED_NUMBER = {
+  '+4921186943411': 'Vielen Dank fuer Ihren Testanruf bei Tawano.\n\nSie haben gerade eine Demo eines digitalen Telefonmitarbeiters getestet.\n\nBuchungslink:\n{booking_link}\n\nBewertung:\n{feedback_link}',
+};
 // ============================================================
 
 // Prueft, ob ein Wert eine echte Telefonnummer ist – verwirft KI-Platzhalter wie "<EINGEHENDE_NUMMER>".
@@ -26,6 +33,19 @@ function isRealPhone(value) {
   const s = String(value || '').trim();
   if (!s || /[<>{}]/.test(s)) return false;
   return s.replace(/\D/g, '').length >= 7;
+}
+
+function normalizePhone(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function templateOverrideForCalledNumber(calledNumber) {
+  const target = normalizePhone(calledNumber);
+  if (!target) return '';
+  for (const [key, tpl] of Object.entries(SMS_TEMPLATE_BY_CALLED_NUMBER)) {
+    if (normalizePhone(key) === target) return String(tpl || '');
+  }
+  return '';
 }
 
 function isAuthorized(event) {
@@ -198,7 +218,8 @@ exports.handler = async (event) => {
       + (body.call_id ? '&c=' + encodeURIComponent(body.call_id) : ''))
     : '';
 
-  const template = String(tSettings.sms_template || '').trim() || DEFAULT_SMS_TEMPLATE;
+  const forcedTemplateByNumber = templateOverrideForCalledNumber(calledNumber);
+  const template = String(forcedTemplateByNumber || tSettings.sms_template || '').trim() || DEFAULT_SMS_TEMPLATE;
   // Wichtig: Der SMS-Text wird ausschliesslich zentral aus dem Admin/Supabase-Template gebaut.
   let message = String(template)
     .replaceAll('{booking_link}', bookingLink || '')
