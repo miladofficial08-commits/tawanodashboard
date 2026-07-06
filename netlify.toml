@@ -98,6 +98,12 @@ status = 200
 force = true
 
 [[redirects]]
+from = "/api/admin/test-sms"
+to = "/.netlify/functions/admin-test-sms"
+status = 200
+force = true
+
+[[redirects]]
 from = "/admin"
 to = "/admin.html"
 status = 200
