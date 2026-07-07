@@ -43,13 +43,13 @@ function normalizePhone(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
-function templateOverrideForCalledNumber(calledNumber) {
+function configOverrideForCalledNumber(calledNumber) {
   const target = normalizePhone(calledNumber);
-  if (!target) return '';
-  for (const [key, tpl] of Object.entries(SMS_TEMPLATE_BY_CALLED_NUMBER)) {
-    if (normalizePhone(key) === target) return String(tpl || '');
+  if (!target) return null;
+  for (const [key, cfg] of Object.entries(SMS_CONFIG_BY_CALLED_NUMBER)) {
+    if (normalizePhone(key) === target) return cfg || null;
   }
-  return '';
+  return null;
 }
 
 function isAuthorized(event) {
@@ -201,8 +201,6 @@ exports.handler = async (event) => {
     return json(200, { ok: false, status: 'disabled', message: 'SMS ist fuer diesen Kunden deaktiviert.', to: phone });
   }
 
-  const bookingLink = String(body.booking_link || body.bookingLink || tenant.booking_link_url || envValue('BOOKING_LINK_URL') || DEFAULT_BOOKING_LINK || '').trim();
-  const name = String(body.customer_name || body.customerName || '').trim();
   const calledNumber = String(
     body.called_number
     || body.system_number
@@ -212,6 +210,9 @@ exports.handler = async (event) => {
     || tenant.retell_from_number
     || ''
   ).trim();
+  const calledNumberConfig = configOverrideForCalledNumber(calledNumber) || {};
+  const bookingLink = String(calledNumberConfig.booking_link || body.booking_link || body.bookingLink || tenant.booking_link_url || envValue('BOOKING_LINK_URL') || DEFAULT_BOOKING_LINK || '').trim();
+  const name = String(body.customer_name || body.customerName || '').trim();
   const resolvedAgentId = String(body.agent_id || (tenantContext.call && tenantContext.call.agent_id) || tenant.retell_agent_id || '').trim();
 
   // Eigener Feedback-Link mit der Kundennummer (und Call-ID, falls vorhanden) - klar getrennt vom Buchungslink.
@@ -222,8 +223,8 @@ exports.handler = async (event) => {
       + (body.call_id ? '&c=' + encodeURIComponent(body.call_id) : ''))
     : '';
 
-  const forcedTemplateByNumber = templateOverrideForCalledNumber(calledNumber);
-  const template = String(forcedTemplateByNumber || tSettings.sms_template || '').trim() || DEFAULT_SMS_TEMPLATE;
+  const forcedTemplateByNumber = String(calledNumberConfig.sms_template || '').trim();
+  const template = forcedTemplateByNumber || String(tSettings.sms_template || '').trim() || DEFAULT_SMS_TEMPLATE;
   // Wichtig: Der SMS-Text wird ausschliesslich zentral aus dem Admin/Supabase-Template gebaut.
   let message = String(template)
     .replaceAll('{booking_link}', bookingLink || '')
@@ -235,7 +236,7 @@ exports.handler = async (event) => {
   }
 
   // Absender: sms_sender aus Supabase-Tenant hat hoechste Prioritaet.
-  const smsSender = String(tenant.sms_sender || '').trim() || envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
+  const smsSender = String(calledNumberConfig.sms_sender || tenant.sms_sender || '').trim() || envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
 
   const payload = {
     type: 'send_booking_link',
