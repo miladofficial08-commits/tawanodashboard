@@ -43,9 +43,15 @@ exports.handler = async (event) => {
     overrideAgentId = requestedAgentId;
   }
 
+  // Aktuelles Datum im ISO-Format für Agent-Prompts
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
   const payload = {
     from_number: fromNumber,
     to_number: toNumber,
+    retell_llm_dynamic_variables: {
+      current_date: today, // z. B. "2026-07-09" für get_available_slots
+    },
     metadata: {
       source: 'dashboardkunde',
       tenant_id: tenantContext.tenant && tenantContext.tenant.id || null,
@@ -85,7 +91,10 @@ exports.handler = async (event) => {
         requestedAgentId: requestedAgentId || null,
         status: data.call_status || 'registered',
         retellStatus: data.call_status || 'registered',
+        from_number: data.from_number || fromNumber,
+        fromNumber: data.from_number || fromNumber,
         to_number: data.to_number || toNumber,
+        toNumber: data.to_number || toNumber,
         phoneNumber: data.to_number || toNumber,
         createdAt,
         updatedAt: createdAt,
