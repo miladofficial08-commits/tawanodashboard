@@ -1,4 +1,27 @@
-const { envValue, insertRow, json, readBody, resolveTenantFromToolBody, getTenantSettings, saveTenantSettings } = require('./_lib/tenant');
+const { envValue, insertRow, json, readBody, resolveTenantFromToolBody, getTenantSettings, saveTenantSettings, listRows } = require('./_lib/tenant');
+
+// Sicherheitsnetz: wurde fuer diesen Anruf bereits ein Termin gebucht (book-appointment),
+// dann ging schon die Call-Details-SMS raus -> die Standard-SMS NICHT zusaetzlich senden.
+// Best-effort: schlaegt die Abfrage fehl (z. B. Tabelle fehlt), laeuft der Versand normal weiter.
+async function recentBookingExists({ callId, phone }) {
+  const sinceIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const digits = String(phone || '').replace(/\D/g, '');
+  try {
+    if (callId) {
+      const byCall = await listRows('tavano_bookings', {
+        select: 'id', call_id: 'eq.' + callId, status: 'eq.booked', limit: 1,
+      }, { serviceRole: true });
+      if (byCall.length) return true;
+    }
+    if (digits) {
+      const rows = await listRows('tavano_bookings', {
+        select: 'phone_number', status: 'eq.booked', created_at: 'gte.' + sinceIso, limit: 50,
+      }, { serviceRole: true });
+      return rows.some((r) => String(r.phone_number || '').replace(/\D/g, '') === digits);
+    }
+  } catch (_) { /* Tabelle/Abfrage optional */ }
+  return false;
+}
 
 // ============================================================
 //  HIER ANPASSEN — Buchungslink & SMS-Text
@@ -26,8 +49,9 @@ const FEEDBACK_BASE_URL = 'https://tawanodashboard.netlify.app/feedback';
 const SMS_CONFIG_BY_CALLED_NUMBER = {
   '+4921186943411': {
     sms_sender: 'Tawano',
-    booking_link: 'https://www.tawano.de/demo',
-    sms_template: 'Vielen Dank für Ihren Testanruf bei Tawano.\n\nSie haben gerade eine Demo eines digitalen Mitarbeiters getestet.\n\nDemo-Link:\n{booking_link}\n\nIhr Tawano Team',
+    append_lead_params: true,
+    booking_link: 'https://tawano.de/voice-agents/',
+    sms_template: 'Danke für Ihren Testanruf bei Tawano.\n\nSie haben gerade live erlebt, wie ein digitaler Mitarbeiter Anrufe annimmt, Informationen erfasst und Ihr Team entlastet.\n\nDer nächste sinnvolle Schritt ist ein kurzes Gespräch mit uns.\n\nDabei zeigen wir Ihnen konkret, wie Ihr digitaler Mitarbeiter für Ihr Unternehmen aufgebaut wird, welche Anrufe er für Sie übernehmen kann und wo Ihr Team dadurch im Alltag entlastet wird:\n\n{booking_link}\n\nIhr Tawano Team',
   },
 };
 // ============================================================
@@ -50,6 +74,28 @@ function configOverrideForCalledNumber(calledNumber) {
     if (normalizePhone(key) === target) return cfg || null;
   }
   return null;
+}
+
+function appendQueryParams(url, params) {
+  const base = String(url || '').trim();
+  if (!base) return '';
+  try {
+    const parsed = new URL(base);
+    Object.entries(params || {}).forEach(([key, value]) => {
+      const text = String(value || '').trim();
+      if (text) parsed.searchParams.set(key, text);
+    });
+    return parsed.toString();
+  } catch (_) {
+    const search = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      const text = String(value || '').trim();
+      if (text) search.set(key, text);
+    });
+    const query = search.toString();
+    if (!query) return base;
+    return base + (base.includes('?') ? '&' : '?') + query;
+  }
 }
 
 function isAuthorized(event) {
@@ -201,6 +247,12 @@ exports.handler = async (event) => {
     return json(200, { ok: false, status: 'disabled', message: 'SMS ist fuer diesen Kunden deaktiviert.', to: phone });
   }
 
+  // Wurde fuer diesen Anruf bereits ein Termin gebucht? Dann ging die Call-Details-SMS
+  // schon raus -> die Standard-SMS wird unterdrueckt.
+  if (await recentBookingExists({ callId: String(body.call_id || '').trim(), phone })) {
+    return json(200, { ok: true, status: 'skipped_booking_sms_sent', message: 'Termin gebucht – Standard-SMS unterdrueckt.', to: phone });
+  }
+
   const calledNumber = String(
     body.called_number
     || body.system_number
@@ -211,9 +263,17 @@ exports.handler = async (event) => {
     || ''
   ).trim();
   const calledNumberConfig = configOverrideForCalledNumber(calledNumber) || {};
-  const bookingLink = String(calledNumberConfig.booking_link || body.booking_link || body.bookingLink || tenant.booking_link_url || envValue('BOOKING_LINK_URL') || DEFAULT_BOOKING_LINK || '').trim();
+  const baseBookingLink = String(calledNumberConfig.booking_link || body.booking_link || body.bookingLink || tenant.booking_link_url || envValue('BOOKING_LINK_URL') || DEFAULT_BOOKING_LINK || '').trim();
   const name = String(body.customer_name || body.customerName || '').trim();
   const resolvedAgentId = String(body.agent_id || (tenantContext.call && tenantContext.call.agent_id) || tenant.retell_agent_id || '').trim();
+  const bookingLink = calledNumberConfig.append_lead_params
+    ? appendQueryParams(baseBookingLink, {
+      p: phone,
+      t: tenant.id,
+      c: body.call_id,
+      name,
+    })
+    : baseBookingLink;
 
   // Eigener Feedback-Link mit der Kundennummer (und Call-ID, falls vorhanden) - klar getrennt vom Buchungslink.
   const feedbackLink = FEEDBACK_BASE_URL
@@ -314,4 +374,10 @@ exports.handler = async (event) => {
       booking_link: bookingLink || null,
     });
   }
+};
+
+exports.__test = {
+  DEFAULT_SMS_TEMPLATE,
+  appendQueryParams,
+  configOverrideForCalledNumber,
 };

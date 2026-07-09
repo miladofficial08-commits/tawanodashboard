@@ -51,14 +51,43 @@ status = 200
 force = true
 
 [[redirects]]
+from = "/api/call-detail"
+to = "/.netlify/functions/get-call-detail"
+status = 200
+force = true
+
+[[redirects]]
 from = "/api/feedback"
 to = "/.netlify/functions/submit-feedback"
 status = 200
 force = true
 
 [[redirects]]
+from = "/api/tavano-lead"
+to = "/.netlify/functions/tavano-lead"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/book-appointment"
+to = "/.netlify/functions/book-appointment"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/get-available-slots"
+to = "/.netlify/functions/get-available-slots"
+status = 200
+force = true
+
+[[redirects]]
 from = "/feedback"
 to = "/feedback.html"
+status = 200
+
+[[redirects]]
+from = "/tavano-demo"
+to = "/tavano-demo.html"
 status = 200
 
 [[redirects]]
