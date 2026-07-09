@@ -49,9 +49,9 @@ const FEEDBACK_BASE_URL = 'https://tawanodashboard.netlify.app/feedback';
 const SMS_CONFIG_BY_CALLED_NUMBER = {
   '+4921186943411': {
     sms_sender: 'Tawano',
-    append_lead_params: true,
+    append_lead_params: false,
     booking_link: 'https://tawano.de/voice-agents/',
-    sms_template: 'Danke für Ihren Testanruf bei Tawano.\n\nSie haben gerade live erlebt, wie ein digitaler Mitarbeiter Anrufe annimmt, Informationen erfasst und Ihr Team entlastet.\n\nDer nächste sinnvolle Schritt ist ein kurzes Gespräch mit uns.\n\nDabei zeigen wir Ihnen konkret, wie Ihr digitaler Mitarbeiter für Ihr Unternehmen aufgebaut wird, welche Anrufe er für Sie übernehmen kann und wo Ihr Team dadurch im Alltag entlastet wird:\n\n{booking_link}\n\nIhr Tawano Team',
+    sms_template: 'Danke für Ihren Testanruf. Das war eine Demo des digitalen Telefonmitarbeiters von Tawano. Hier finden Sie weitere Informationen und können sich bei Interesse einen passenden Termin aussuchen: https://tawano.de/voice-agents/',
   },
 };
 // ============================================================
