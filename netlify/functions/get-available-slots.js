@@ -4,7 +4,7 @@
 // einfachen Format { success, slots: [{ date, time, label }] }.
 // Keine Zufallszeiten – ausschliesslich das, was Cal.com als frei meldet.
 
-const { envValue, json, readBody } = require('./_lib/tenant');
+const { envValue, json, readBody, resolveTenantFromToolBody, getTenantSettings } = require('./_lib/tenant');
 const calcom = require('./_lib/calcom');
 
 const LOOKAHEAD_DAYS = 14;
@@ -62,10 +62,17 @@ exports.handler = async (event) => {
   const raw = readBody(event) || {};
   const input = parseInput(raw);
 
-  const apiKey = String(envValue('CALCOM_API_KEY') || '').trim();
-  const eventTypeId = String(envValue('CALCOM_EVENT_TYPE_ID') || '').trim();
+  // Dieselbe tenant-spezifische Cal.com-Konfiguration wie book-appointment verwenden.
+  // So koennen Suche und Buchung niemals versehentlich verschiedene Kalender nutzen.
+  const tenantContext = await resolveTenantFromToolBody(input);
+  const tenant = tenantContext.tenant;
+  let tSettings = {};
+  try { tSettings = await getTenantSettings(tenant && tenant.id, { serviceRole: true }); } catch (_) { }
+
+  const apiKey = String(tSettings.calcom_api_key || envValue('CALCOM_API_KEY') || '').trim();
+  const eventTypeId = String(tSettings.calcom_event_type_id || envValue('CALCOM_EVENT_TYPE_ID') || '').trim();
   if (!apiKey || !eventTypeId) {
-    return json(500, { success: false, message: 'Cal.com ist nicht vollstaendig konfiguriert.' });
+    return json(500, { success: false, message: 'Cal.com ist fuer diesen Kunden nicht vollstaendig konfiguriert.' });
   }
 
   // Input auslesen mit Defaults
@@ -97,11 +104,12 @@ exports.handler = async (event) => {
     return json(502, { success: false, message: 'Freie Zeiten konnten nicht geladen werden.', detail: slotsResult.reason });
   }
 
-  let slots = calcom.pickSlots(slotsResult.byDate, limit, now)
+  // Mehr Kandidaten holen und erst nach der Zeitpraeferenz auf das gewuenschte
+  // Limit kuerzen. Sonst koennen z. B. zwei Vormittagsslots die vorhandenen
+  // Nachmittagsslots verdraengen und faelschlich "keine Termine" erzeugen.
+  let slots = calcom.pickSlots(slotsResult.byDate, 50, now)
     .map(({ date, time, label }) => ({ date, time, timezone: DEFAULT_TIMEZONE, label }));
-
-  // Nach Zeit-Präferenz filtern
-  slots = filterByTimePreference(slots, timePreference);
+  slots = filterByTimePreference(slots, timePreference).slice(0, limit);
 
   if (!slots.length) {
     return json(200, { success: false, status: 'no_slots_available', message: 'Keine passenden freien Zeiten gefunden.' });
