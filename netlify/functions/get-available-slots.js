@@ -35,6 +35,28 @@ function parseDate(dateStr) {
   return !Number.isNaN(d.getTime()) ? d : null;
 }
 
+// Filtert rohe Cal.com-Zeitpunkte vor der Tagesauswahl. So wird pro Tag der
+// frueheste Slot innerhalb der gewuenschten Tageszeit gewaehlt.
+function filterRawSlotsByTimePreference(byDate, preference) {
+  if (!preference || preference === 'any') return byDate;
+  const pref = String(preference).toLowerCase();
+  const result = {};
+  Object.keys(byDate || {}).forEach((day) => {
+    const matches = (byDate[day] || []).filter((date) => {
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: DEFAULT_TIMEZONE, hour12: false, hour: '2-digit', minute: '2-digit',
+      }).formatToParts(date).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+      const mins = Number(parts.hour) * 60 + Number(parts.minute);
+      if (pref === 'morning') return mins >= 7 * 60 && mins < 12 * 60;
+      if (pref === 'afternoon') return mins >= 12 * 60 && mins < 17 * 60;
+      if (pref === 'evening') return mins >= 17 * 60 && mins <= 20 * 60;
+      return false;
+    });
+    if (matches.length) result[day] = matches;
+  });
+  return result;
+}
+
 // Filtert slots nach time_preference (any|morning|afternoon|evening)
 function filterByTimePreference(slots, preference) {
   if (!preference || preference === 'any') return slots;
@@ -107,9 +129,9 @@ exports.handler = async (event) => {
   // Mehr Kandidaten holen und erst nach der Zeitpraeferenz auf das gewuenschte
   // Limit kuerzen. Sonst koennen z. B. zwei Vormittagsslots die vorhandenen
   // Nachmittagsslots verdraengen und faelschlich "keine Termine" erzeugen.
-  let slots = calcom.pickSlots(slotsResult.byDate, 50, now)
+  const preferredByDate = filterRawSlotsByTimePreference(slotsResult.byDate, timePreference);
+  let slots = calcom.pickSlots(preferredByDate, limit, now)
     .map(({ date, time, label }) => ({ date, time, timezone: DEFAULT_TIMEZONE, label }));
-  slots = filterByTimePreference(slots, timePreference).slice(0, limit);
 
   if (!slots.length) {
     return json(200, { success: false, status: 'no_slots_available', message: 'Keine passenden freien Zeiten gefunden.' });
