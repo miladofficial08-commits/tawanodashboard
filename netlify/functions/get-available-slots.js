@@ -75,12 +75,41 @@ function pickSlotsFlat(byDate, limit, now, matchFn) {
     });
   });
   all.sort((a, b) => a.getTime() - b.getTime());
-  return all.slice(0, Math.max(1, Number(limit) || 3)).map((slot) => ({
+  const max = Math.max(1, Number(limit) || 3);
+  // Slots SPREIZEN statt aufeinanderfolgend: mind. ~1 Stunde Abstand, damit der Agent
+  // natuerliche Optionen nennt (z. B. 14, 15, 16 Uhr) statt 12:00/12:15/12:30.
+  const MIN_GAP_MS = 60 * 60 * 1000;
+  const chosen = [];
+  for (const d of all) {
+    if (chosen.length >= max) break;
+    if (!chosen.length || (d.getTime() - chosen[chosen.length - 1].getTime()) >= MIN_GAP_MS) chosen.push(d);
+  }
+  // Falls das Zeitfenster zu schmal fuer den Abstand war, mit den naechstbesten auffuellen.
+  if (chosen.length < max) {
+    for (const d of all) {
+      if (chosen.length >= max) break;
+      if (!chosen.includes(d)) chosen.push(d);
+    }
+    chosen.sort((a, b) => a.getTime() - b.getTime());
+  }
+  return chosen.map((slot) => ({
     date: calcom.berlinDateKey(slot),
     time: calcom.formatBerlinTime(slot),
     label: calcom.formatBerlinWeekday(slot) + ' um ' + calcom.formatBerlinSpokenTime(slot),
     start: slot.toISOString(),
   }));
+}
+
+// Robuste Uhrzeit-Erkennung: akzeptiert "15", "15:00", "15.30", "15 Uhr", "1500".
+function parseTimeToMinutes(value) {
+  const s = String(value || '').trim().toLowerCase().replace(/\s*uhr\s*/g, '').trim();
+  let m = s.match(/^(\d{1,2})[:.](\d{2})$/);
+  if (m && Number(m[1]) <= 23 && Number(m[2]) <= 59) return Number(m[1]) * 60 + Number(m[2]);
+  m = s.match(/^(\d{1,2})$/);
+  if (m && Number(m[1]) <= 23) return Number(m[1]) * 60;
+  m = s.match(/^(\d{1,2})(\d{2})$/);
+  if (m && Number(m[1]) <= 23 && Number(m[2]) <= 59) return Number(m[1]) * 60 + Number(m[2]);
+  return null;
 }
 
 function pickSlotsByPreference(byDate, limit, now, preference) {
@@ -94,9 +123,8 @@ function pickSlotsByPreference(byDate, limit, now, preference) {
 }
 
 function pickSlotsForRequestedTime(byDate, limit, now, requestedTime) {
-  const match = String(requestedTime || '').trim().match(/^(\d{1,2})(?::|\.)(\d{2})$/);
-  if (!match) return [];
-  const targetMinutes = Number(match[1]) * 60 + Number(match[2]);
+  const targetMinutes = parseTimeToMinutes(requestedTime);
+  if (targetMinutes == null) return [];
   const exact = {};
   const nearest = {};
   Object.entries(byDate || {}).forEach(([day, dates]) => {
@@ -107,7 +135,10 @@ function pickSlotsForRequestedTime(byDate, limit, now, requestedTime) {
       };
       return Math.abs(minutes(a) - targetMinutes) - Math.abs(minutes(b) - targetMinutes);
     });
-    const matching = sorted.filter((date) => calcom.formatBerlinTime(date) === String(match[1]).padStart(2, '0') + ':' + match[2]);
+    const matching = sorted.filter((date) => {
+      const [hh, mm] = calcom.formatBerlinTime(date).split(':').map(Number);
+      return hh * 60 + mm === targetMinutes;
+    });
     if (matching.length) exact[day] = matching;
     if (sorted.length) nearest[day] = sorted;
   });
@@ -115,12 +146,8 @@ function pickSlotsForRequestedTime(byDate, limit, now, requestedTime) {
 }
 
 function pickSlotsInTimeRange(byDate, limit, now, timeFrom, timeTo) {
-  const toMinutes = (value) => {
-    const match = String(value || '').trim().match(/^(\d{1,2})(?::|\.)(\d{2})$/);
-    return match ? Number(match[1]) * 60 + Number(match[2]) : null;
-  };
-  const from = toMinutes(timeFrom);
-  const to = toMinutes(timeTo);
+  const from = parseTimeToMinutes(timeFrom);
+  const to = parseTimeToMinutes(timeTo);
   if (from == null || to == null || to < from) return [];
   return pickSlotsFlat(byDate, limit, now, (date) => {
     const [hour, minute] = calcom.formatBerlinTime(date).split(':').map(Number);
@@ -207,4 +234,4 @@ exports.handler = async (event) => {
   return json(200, { success: true, slots });
 };
 
-exports.__test = { filterByTimePreference, normalizeTimePreference, pickSlotsByPreference, pickSlotsForRequestedTime, pickSlotsInTimeRange, pickSlotsFlat };
+exports.__test = { filterByTimePreference, normalizeTimePreference, pickSlotsByPreference, pickSlotsForRequestedTime, pickSlotsInTimeRange, pickSlotsFlat, parseTimeToMinutes };
