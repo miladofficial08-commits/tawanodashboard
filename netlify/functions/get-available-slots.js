@@ -8,7 +8,7 @@ const { envValue, json, readBody, resolveTenantFromToolBody, getTenantSettings }
 const calcom = require('./_lib/calcom');
 
 const LOOKAHEAD_DAYS = 14;
-const MAX_SLOTS_DEFAULT = 2;
+const MAX_SLOTS_DEFAULT = 3;
 const DEFAULT_TIMEZONE = 'Europe/Berlin';
 
 function isAuthorized(event) {
@@ -72,6 +72,29 @@ function filterByTimePreference(slots, preference) {
   });
 }
 
+// Flach ueber alle Tage: mehrere gueltige Slots (auch am selben Tag) in
+// chronologischer Reihenfolge bis zum Limit. Damit kann der Agent z. B. drei
+// Nachmittagstermine DESSELBEN Tages nennen (14/15/16 Uhr) statt nur den fruehesten.
+function pickSlotsFlat(byDate, limit, now) {
+  const reference = now instanceof Date ? now : new Date();
+  const all = [];
+  Object.keys(byDate || {}).sort().forEach((day) => {
+    (byDate[day] || []).forEach((d) => {
+      if (!(d instanceof Date) || Number.isNaN(d.getTime())) return;
+      if (d.getTime() < reference.getTime()) return;
+      if (!calcom.validateSlot(d, reference).ok) return;
+      all.push(d);
+    });
+  });
+  all.sort((a, b) => a.getTime() - b.getTime());
+  return all.slice(0, Math.max(1, Number(limit) || 3)).map((slot) => ({
+    date: calcom.berlinDateKey(slot),
+    time: calcom.formatBerlinTime(slot),
+    label: calcom.formatBerlinWeekday(slot) + ' um ' + calcom.formatBerlinTime(slot) + ' Uhr',
+    start: slot.toISOString(),
+  }));
+}
+
 exports.handler = async (event) => {
   const method = (event.httpMethod || 'GET').toUpperCase();
   if (method !== 'POST' && method !== 'GET') {
@@ -130,8 +153,13 @@ exports.handler = async (event) => {
   // Limit kuerzen. Sonst koennen z. B. zwei Vormittagsslots die vorhandenen
   // Nachmittagsslots verdraengen und faelschlich "keine Termine" erzeugen.
   const preferredByDate = filterRawSlotsByTimePreference(slotsResult.byDate, timePreference);
-  let slots = calcom.pickSlots(preferredByDate, limit, now)
-    .map(({ date, time, label }) => ({ date, time, timezone: DEFAULT_TIMEZONE, label }));
+  // Mit Zeit-Praeferenz (morgens/nachmittags/abends): mehrere passende Slots AM SELBEN
+  // Tag liefern, nicht nur den fruehesten pro Tag. Ohne Praeferenz: pro Tag der frueheste
+  // ueber mehrere Tage (Abwechslung).
+  const picked = (timePreference && timePreference !== 'any')
+    ? pickSlotsFlat(preferredByDate, limit, now)
+    : calcom.pickSlots(preferredByDate, limit, now);
+  let slots = picked.map(({ date, time, label }) => ({ date, time, timezone: DEFAULT_TIMEZONE, label }));
 
   if (!slots.length) {
     return json(200, { success: false, status: 'no_slots_available', message: 'Keine passenden freien Zeiten gefunden.' });
@@ -139,3 +167,5 @@ exports.handler = async (event) => {
 
   return json(200, { success: true, slots });
 };
+
+exports.__test = { pickSlotsFlat, filterRawSlotsByTimePreference };
