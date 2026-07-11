@@ -84,6 +84,10 @@ button,input{font-family:'Manrope',sans-serif}
 .filters{display:flex;gap:7px;flex-wrap:wrap}
 .pill{border:1.5px solid var(--line);background:#fff;color:#445c78;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:800;cursor:pointer}
 .pill.active{background:#132238;color:#fff;border-color:#132238}
+.subfilters{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.subfilters label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:#66798f}
+.subfilters select{border:1.5px solid var(--line);border-radius:9px;padding:7px 9px;font-size:13px;font-family:inherit;background:#fff;color:#132238;font-weight:700;cursor:pointer;outline:none}
+.subfilters select:focus{border-color:var(--green);box-shadow:0 0 0 4px rgba(15,138,95,.12)}
 .list{display:flex;flex-direction:column;padding:6px 0}
 .list-footer{display:flex;justify-content:center;padding:0 16px 16px}
 .btn-more{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font-size:12px;font-weight:800;color:#1f3a57;cursor:pointer}
@@ -320,13 +324,28 @@ button,input{font-family:'Manrope',sans-serif}
 
       <section class="panel" style="margin-bottom:10px">
         <div class="panel-head">
-          <div><h2>Was jetzt zu tun ist</h2><p>Die Liste ist automatisch nach Wichtigkeit sortiert.</p></div>
+          <div><h2>Was jetzt zu tun ist</h2><p>Chronologisch nach Datum &amp; Uhrzeit. Der Typ steht an jedem Anruf.</p></div>
           <div class="filters">
             <button id="filter-all" class="pill active" onclick="setFilter('all')">Alle</button>
             <button id="filter-callback" class="pill" onclick="setFilter('callback')">Rückruf</button>
             <button id="filter-transfer" class="pill" onclick="setFilter('transfer')">Weiterleitung</button>
             <button id="filter-done" class="pill" onclick="setFilter('done')">Erledigt</button>
           </div>
+        </div>
+        <div class="subfilters">
+          <label>Sortierung
+            <select id="sub-sort" onchange="setSort(this.value)">
+              <option value="new">Neueste zuerst</option>
+              <option value="old">Älteste zuerst</option>
+            </select>
+          </label>
+          <label>Zeitraum
+            <select id="sub-range" onchange="setRange(this.value)">
+              <option value="all">Alle</option>
+              <option value="today">Heute</option>
+              <option value="week">Letzte 7 Tage</option>
+            </select>
+          </label>
         </div>
         <div id="call-list" class="list"><div class="empty">Noch keine Daten geladen.</div></div>
         <div class="list-footer"><button id="more-calls-btn" class="btn-more hidden" onclick="toggleShowAllCalls()">Mehr Anrufe zeigen</button></div>
@@ -453,6 +472,8 @@ let currentUser = null;
 let currentTenant = null;
 let timer = null;
 let activeFilter = 'all';
+let sortOrder = 'new';   // 'new' = neueste zuerst, 'old' = älteste zuerst
+let timeRange = 'all';   // 'all' | 'today' | 'week'
 let completedTasks = loadCompletedTasks();
 let showAllCalls = false;
 const DEFAULT_VISIBLE_CALLS = 5;
@@ -1183,6 +1204,9 @@ async function refreshCalls() {
   }
 }
 
+function renderCurrentList() {
+  renderList(calls.slice(0, 220).map(buildItemModel));
+}
 function setFilter(filter) {
   activeFilter = filter;
   showAllCalls = false;
@@ -1190,8 +1214,15 @@ function setFilter(filter) {
     const el = document.getElementById('filter-' + name);
     if (el) el.classList.toggle('active', name === filter);
   });
-  const items = sortItems(calls.slice(0, 220).map(buildItemModel));
-  renderList(items);
+  renderCurrentList();
+}
+function setSort(order) {
+  sortOrder = order === 'old' ? 'old' : 'new';
+  renderCurrentList();
+}
+function setRange(range) {
+  timeRange = ['today','week'].includes(range) ? range : 'all';
+  renderCurrentList();
 }
 
 function render() {
@@ -1441,8 +1472,19 @@ function toggleShowAllCalls() {
 function renderList(items) {
   const list = document.getElementById('call-list');
   const moreBtn = document.getElementById('more-calls-btn');
+  const nowMs = Date.now();
+  const itemMs = (item) => new Date(item.createdAt || 0).getTime();
+  const inRange = (item) => {
+    if (timeRange === 'today') return isToday(item.createdAt);
+    if (timeRange === 'week') return (nowMs - itemMs(item)) <= 7 * 24 * 60 * 60 * 1000;
+    return true;
+  };
+  // "Alle" zeigt jeden Anruf (egal welcher Typ); die uebrigen Tabs filtern nach Typ.
+  // Sortierung IMMER chronologisch nach Anrufzeit (per Auswahl neueste/aelteste zuerst).
   const filtered = items
-    .filter((item) => activeFilter === 'all' || activeFilter === item.info.key || (activeFilter === 'callback' && item.info.key === 'problem'));
+    .filter((item) => activeFilter === 'all' || activeFilter === item.info.key || (activeFilter === 'callback' && item.info.key === 'problem'))
+    .filter(inRange)
+    .sort((a, b) => (sortOrder === 'old' ? itemMs(a) - itemMs(b) : itemMs(b) - itemMs(a)));
   const visibleItems = showAllCalls ? filtered : filtered.slice(0, DEFAULT_VISIBLE_CALLS);
 
   if (!filtered.length) {
