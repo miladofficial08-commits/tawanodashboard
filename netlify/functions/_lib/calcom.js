@@ -113,6 +113,23 @@ function formatBerlinTime(date) {
     timeZone: CAL_TIMEZONE, hour: '2-digit', minute: '2-digit',
   }).format(date);
 }
+function germanNumber(value) {
+  const ones = ['null', 'eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun', 'zehn', 'elf', 'zwölf', 'dreizehn', 'vierzehn', 'fünfzehn', 'sechzehn', 'siebzehn', 'achtzehn', 'neunzehn'];
+  const n = Number(value);
+  if (n < 20) return ones[n];
+  const tens = { 2: 'zwanzig', 3: 'dreißig', 4: 'vierzig', 5: 'fünfzig' };
+  if (n % 10 === 0) return tens[Math.floor(n / 10)];
+  const unit = n % 10 === 1 ? 'ein' : ones[n % 10];
+  return unit + 'und' + tens[Math.floor(n / 10)];
+}
+function formatBerlinSpokenTime(date) {
+  const parts = new Intl.DateTimeFormat('de-DE', {
+    timeZone: CAL_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === 'hour').value) % 24;
+  const minute = Number(parts.find((p) => p.type === 'minute').value);
+  return germanNumber(hour) + ' Uhr' + (minute ? ' ' + germanNumber(minute) : '');
+}
 function formatBerlinWeekday(date) {
   return new Intl.DateTimeFormat('de-DE', { timeZone: CAL_TIMEZONE, weekday: 'long' }).format(date);
 }
@@ -174,7 +191,7 @@ function pickSlots(byDate, max, now) {
     out.push({
       date: berlinDateKey(slot),
       time: formatBerlinTime(slot),
-      label: formatBerlinWeekday(slot) + ' um ' + formatBerlinTime(slot) + ' Uhr',
+      label: formatBerlinWeekday(slot) + ' um ' + formatBerlinSpokenTime(slot),
       start: slot.toISOString(),
     });
   }
@@ -244,6 +261,7 @@ module.exports = {
   validateSlot,
   formatBerlinDate,
   formatBerlinTime,
+  formatBerlinSpokenTime,
   formatBerlinWeekday,
   berlinDateKey,
   buildBookingBody,

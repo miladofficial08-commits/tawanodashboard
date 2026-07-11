@@ -121,10 +121,10 @@ function testPickSlotsReturnsMaxTwoAcrossDays() {
   // Frühester Slot je Tag, über aufeinanderfolgende Tage.
   assert.equal(slots[0].date, '2026-07-13');
   assert.equal(slots[0].time, '10:30');
-  assert.match(slots[0].label, /Montag um 10:30 Uhr/);
+  assert.match(slots[0].label, /Montag um zehn Uhr dreißig/);
   assert.equal(slots[1].date, '2026-07-14');
   assert.equal(slots[1].time, '15:00');
-  assert.match(slots[1].label, /Dienstag um 15:00 Uhr/);
+  assert.match(slots[1].label, /Dienstag um fünfzehn Uhr/);
 }
 
 function testPickSlotsSkipsPastAndOutOfWindow() {
