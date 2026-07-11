@@ -121,12 +121,17 @@ exports.handler = async (event) => {
   const retellApiKey = envValue('RETELL_API_KEY').trim();
   if (!retellApiKey) return json(500, { ok: false, message: 'RETELL_API_KEY fehlt in .env.' });
 
-  // Kunden-Einstellungen (Admin) an den Tenant haengen: Minuten-Budget + Detail-Analyse-Schalter.
+  // Kunden-Einstellungen (Admin) an den Tenant haengen: Minuten-Budget + Detail-Analyse-Schalter + Terminbuchung + Cal.com.
+  // WICHTIG: serviceRole, weil Admin die Settings mit serviceRole speichert und RLS sie blockiert, wenn nur accessToken.
   if (tenantContext.tenant && tenantContext.tenant.id) {
     try {
-      const settings = await getTenantSettings(tenantContext.tenant.id, { accessToken });
+      const settings = await getTenantSettings(tenantContext.tenant.id, { serviceRole: true });
       if (settings && settings.minutes_budget !== undefined) tenantContext.tenant.minutes_budget = Number(settings.minutes_budget) || 0;
       tenantContext.tenant.detailed_analysis = Boolean(settings && settings.detailed_analysis);
+      tenantContext.tenant.booking_enabled = settings.booking_enabled === true;
+      tenantContext.tenant.sms_appointment_template = String(settings.sms_appointment_template || '');
+      tenantContext.tenant.calcom_api_key = String(settings.calcom_api_key || '');
+      tenantContext.tenant.calcom_event_type_id = String(settings.calcom_event_type_id || '');
     } catch (_) { /* Einstellungen optional */ }
   }
 
