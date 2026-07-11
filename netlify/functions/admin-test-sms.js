@@ -18,15 +18,14 @@ function checkAdmin(event, body) {
   return Boolean(adminSecret) && provided === adminSecret;
 }
 
-const DEFAULT_SMS_FROM = 'Tawano';
 const FEEDBACK_BASE_URL = 'https://tawanodashboard.netlify.app/feedback';
 
 async function sendViaSeven(to, messageText, smsSender) {
   const apiKey = envValue('SEVEN_API_KEY').trim();
   if (!apiKey) return { sent: false, reason: 'SEVEN_API_KEY fehlt' };
 
-  // Prioritaet: tenant.sms_sender > SMS_FROM env > Default.
-  const smsFrom = String(smsSender || '').trim() || envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
+  // Absender kommt AUSSCHLIESSLICH aus dem Admin (tenants.sms_sender) - wie im echten Versand.
+  const smsFrom = String(smsSender || '').trim();
   const body = { to, text: messageText, json: 1 };
   if (smsFrom) body.from = smsFrom;
 
@@ -66,12 +65,18 @@ exports.handler = async (event) => {
   if (settings.sms_enabled === false)
     return json(200, { ok: false, message: 'SMS ist fuer diesen Kunden deaktiviert.' });
 
-  const DEFAULT_SMS_TEMPLATE = 'Vielen Dank fuer Ihren Anruf bei ' + tenant.name + '.';
-  const template = String(settings.sms_template || '').trim() || DEFAULT_SMS_TEMPLATE;
+  // EXAKT wie der echte Versand (send-booking-link): ohne Vorlage oder Absender wird
+  // NICHT gesendet - damit der Test niemals etwas anderes zeigt als die Realitaet.
+  const template = String(settings.sms_template || '').trim();
+  if (!template) {
+    return json(400, { ok: false, message: 'Keine SMS-Vorlage gespeichert. Bitte im Admin die SMS-Nachricht eintragen und speichern.' });
+  }
+  const smsSender = String(tenant.sms_sender || '').trim();
+  if (!smsSender) {
+    return json(400, { ok: false, message: 'Kein SMS-Absender gespeichert. Bitte im Admin den SMS-Absender eintragen und speichern.' });
+  }
   const bookingLink = String(tenant.booking_link_url || '').trim();
   const feedbackLink = FEEDBACK_BASE_URL ? FEEDBACK_BASE_URL + '?p=' + encodeURIComponent(toNumber) + '&t=' + encodeURIComponent(tenantId) : '';
-
-  const smsSender = String(tenant.sms_sender || '').trim();
   const message = String(template)
     .replaceAll('{booking_link}', bookingLink)
     .replaceAll('{feedback_link}', feedbackLink)

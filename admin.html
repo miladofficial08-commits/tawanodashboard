@@ -246,6 +246,9 @@ function renderCustomer(c) {
       + '<div class="field"><label>Termin-SMS nach Buchung ({appointment_date}, {appointment_time}, {meeting_link})</label><textarea class="f-appt-sms" placeholder="Danke für Ihren Testanruf. Ihr Termin ist für {appointment_date} um {appointment_time} vorgemerkt. Meeting-Link: {meeting_link}">'+esc(c.sms_appointment_template)+'</textarea></div>'
       + '<div class="grid2"><div class="field"><label>Cal.com API-Key (nur wenn Terminbuchung an)</label><input class="f-calkey" placeholder="cal_live_..." value="'+esc(c.calcom_api_key)+'"></div>'
       + '<div class="field"><label>Cal.com Event-Type-ID</label><input class="f-caltype" placeholder="z. B. 1234567" value="'+esc(c.calcom_event_type_id)+'"></div></div>'
+      + '<div class="field"><label>SMS abchecken: Testnummer (sendet die GESPEICHERTE Vorlage als echte SMS)</label>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap"><input class="f-testnr" type="tel" placeholder="+4917612345678" style="flex:1;min-width:180px">'
+        + '<button class="btn btn-ghost" onclick="testSms(this)">Test-SMS senden</button></div></div>'
     + '</div></details>'
     + '<div class="cust-actions"><button class="btn btn-open" onclick="openDashboard(this)">Dashboard öffnen</button>'
       + '<button class="btn btn-main" onclick="saveCustomer(this)">Speichern</button>'
@@ -276,6 +279,20 @@ async function saveCustomer(btn) {
   try { await api('/api/admin/update-customer',payload); msg.className='cmsg ok'; msg.textContent='Gespeichert.'; }
   catch(e){ msg.className='cmsg err'; msg.textContent='Fehler: '+(e.message||e); }
   finally { btn.disabled=false; btn.textContent='Speichern'; }
+}
+
+async function testSms(btn) {
+  const card=btn.closest('.cust'), id=card.getAttribute('data-id');
+  const msg=card.querySelector('.cmsg'); msg.className='cmsg'; msg.textContent='';
+  const nr=(card.querySelector('.f-testnr').value||'').trim();
+  if(!nr){ msg.className='cmsg err'; msg.textContent='Bitte Testnummer eingeben, z. B. +4917612345678.'; return; }
+  if(!confirm('Echte SMS an '+nr+' senden? (Es wird die zuletzt GESPEICHERTE Vorlage verwendet - erst speichern, dann testen.)')) return;
+  btn.disabled=true; btn.textContent='Sendet...';
+  try {
+    const d=await api('/api/admin/test-sms',{tenant_id:id,to_number:nr});
+    msg.className='cmsg ok'; msg.textContent='Test-SMS gesendet an '+nr+': "'+String(d.message_preview||'').slice(0,80)+'..."';
+  } catch(e){ msg.className='cmsg err'; msg.textContent='Fehler: '+(e.message||e); }
+  finally { btn.disabled=false; btn.textContent='Test-SMS senden'; }
 }
 
 async function openDashboard(btn) {

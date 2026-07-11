@@ -447,6 +447,8 @@ module.exports = {
   readBody,
   resolveTenantContextFromAccessToken,
   resolveTenantFromToolBody,
+  getTenantById,
+  getTenantByAgentId,
   getTenantByPhoneNumber,
   getTenantSettings,
   saveTenantSettings,

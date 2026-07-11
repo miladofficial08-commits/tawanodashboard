@@ -1,7 +1,6 @@
 const { envValue, listRows, json, readBody, getTenantSettings } = require('./_lib/tenant');
-
-// Standard-SMS-Text (wie in send-booking-link.js) - damit die aktuell aktive Nachricht angezeigt wird.
-const DEFAULT_SMS_TEMPLATE = 'Vielen Dank für Ihren Anruf bei Beauty World Düsseldorf Arcaden.\n\nTermin online buchen:\n{booking_link}\n\nGespräch mit Lisa bewerten (1-5):\n{feedback_link}\n\nIhr Beauty World Team';
+// Gleicher Fallback wie beim echten Termin-SMS-Versand -> Admin zeigt IMMER den Text, der wirklich gesendet wird.
+const DEFAULT_APPOINTMENT_SMS_TEMPLATE = require('./book-appointment').__test.DEFAULT_APPOINTMENT_SMS_TEMPLATE;
 
 function checkAdmin(event, body) {
   const adminSecret = envValue('ADMIN_SECRET').trim();
@@ -98,7 +97,7 @@ exports.handler = async (event) => {
       sms_template: effectiveSms,
       // Terminbuchung (Cal.com) - im Admin-Terminal bearbeitbar.
       booking_enabled: settings.booking_enabled === true,
-      sms_appointment_template: String(settings.sms_appointment_template || ''),
+      sms_appointment_template: String(settings.sms_appointment_template || '').trim() || DEFAULT_APPOINTMENT_SMS_TEMPLATE,
       calcom_api_key: String(settings.calcom_api_key || ''),
       calcom_event_type_id: String(settings.calcom_event_type_id || ''),
       stats: stats,
