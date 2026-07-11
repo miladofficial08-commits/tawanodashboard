@@ -6,6 +6,24 @@ function toIsoFromMs(ms) {
   return new Date(num).toISOString();
 }
 
+function currentDateInTimeZone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timeZone || 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date || new Date());
+  const byType = {};
+  parts.forEach((part) => { byType[part.type] = part.value; });
+  return byType.year + '-' + byType.month + '-' + byType.day;
+}
+
+function buildRetellDynamicVariables(now) {
+  return {
+    current_date: currentDateInTimeZone(now || new Date(), 'Europe/Berlin'),
+  };
+}
+
 exports.handler = async (event) => {
   if ((event.httpMethod || 'GET').toUpperCase() !== 'POST') {
     return json(405, { ok: false, message: 'Method Not Allowed' });
@@ -44,7 +62,8 @@ exports.handler = async (event) => {
   }
 
   // Aktuelles Datum im ISO-Format für Agent-Prompts
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  const today = buildRetellDynamicVariables().current_date;
 
   const payload = {
     from_number: fromNumber,
@@ -104,4 +123,9 @@ exports.handler = async (event) => {
   } catch (error) {
     return json(502, { ok: false, message: 'Retell nicht erreichbar.', detail: String(error && error.message ? error.message : error) });
   }
+};
+
+exports.__test = {
+  buildRetellDynamicVariables,
+  currentDateInTimeZone,
 };

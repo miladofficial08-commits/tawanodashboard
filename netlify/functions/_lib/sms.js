@@ -83,7 +83,8 @@ async function deliverSms(payload) {
       message: payload.message,
       provider: result.provider || 'unknown',
       provider_message_id: (firstMsg && firstMsg.id) || null,
-      status: result.sent ? 'sent' : 'queued',
+      // Code 100 / HTTP 200 = nur ANGENOMMEN. Zustellung (DELIVERED) kommt spaeter per DLR-Webhook.
+      status: result.sent ? 'ACCEPTED' : 'FAILED',
     };
     try {
       await insertRow('sms_logs', Object.assign({}, baseLog, {

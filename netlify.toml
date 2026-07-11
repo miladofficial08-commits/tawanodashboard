@@ -39,6 +39,18 @@ status = 200
 force = true
 
 [[redirects]]
+from = "/api/send-confirmation-sms"
+to = "/.netlify/functions/send-confirmation-sms"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/send_confirmation_sms"
+to = "/.netlify/functions/send_confirmation_sms"
+status = 200
+force = true
+
+[[redirects]]
 from = "/api/callback"
 to = "/.netlify/functions/create-callback-request"
 status = 200
@@ -47,6 +59,18 @@ force = true
 [[redirects]]
 from = "/api/sms-inbound"
 to = "/.netlify/functions/sms-inbound"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/sms-dlr"
+to = "/.netlify/functions/sms-dlr"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/retell-inbound"
+to = "/.netlify/functions/retell-inbound"
 status = 200
 force = true
 

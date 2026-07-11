@@ -70,8 +70,14 @@ exports.handler = async (event) => {
 
   // Input auslesen mit Defaults
   const now = new Date();
-  const dateFrom = parseDate(input.date_from) || now;
-  const dateTo = parseDate(input.date_to) || new Date(now.getTime() + LOOKAHEAD_DAYS * 86400000);
+  const todayMidnightUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  let dateFrom = parseDate(input.date_from) || now;
+  // Schutz vor halluziniertem/veraltetem Datum (z. B. wenn dem Agent current_date fehlt und er
+  // "2024-06-12" erfindet): niemals in der Vergangenheit suchen -> auf heute anheben.
+  if (dateFrom < todayMidnightUtc) dateFrom = now;
+  let dateTo = parseDate(input.date_to) || new Date(dateFrom.getTime() + LOOKAHEAD_DAYS * 86400000);
+  // date_to darf nicht vor date_from liegen (sonst liefert Cal.com nichts).
+  if (dateTo <= dateFrom) dateTo = new Date(dateFrom.getTime() + LOOKAHEAD_DAYS * 86400000);
   const limit = Math.max(1, Math.min(5, Number(input.limit) || MAX_SLOTS_DEFAULT));
   const timePreference = String(input.time_preference || '').trim() || 'any';
   const timezone = String(input.timezone || '').trim() || DEFAULT_TIMEZONE;

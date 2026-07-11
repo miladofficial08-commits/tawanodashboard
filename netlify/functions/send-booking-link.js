@@ -24,56 +24,22 @@ async function recentBookingExists({ callId, phone }) {
 }
 
 // ============================================================
-//  HIER ANPASSEN — Buchungslink & SMS-Text
-//  Danach speichern und pushen:
-//    git add . && git commit -m "sms anpassen" && git push
+//  SMS-INHALTE KOMMEN AUSSCHLIESSLICH AUS SUPABASE (pro Tenant) — NICHT mehr hier im Code:
+//    - Nachricht/Vorlage:            analytics_snapshots(tenant_settings) -> payload.sms_template
+//    - Absender:                     tenants.sms_sender
+//    - Buchungslink:                 tenants.booking_link_url
+//    - Lead-Parameter an Link haengen: tenant_settings -> payload.append_lead_params (true/false)
+//  Neue Nummer/Nachricht = neuer Tenant + Settings in Supabase. KEINE hartcodierten Vorlagen.
+//  Ohne Vorlage ODER Absender in Supabase wird bewusst NICHT gesendet (klare Fehlermeldung).
 // ============================================================
-// 1) Dein Standard-Buchungslink (wird in die SMS eingesetzt, ersetzt {booking_link}):
-const DEFAULT_BOOKING_LINK = 'https://www.treatwell.de/ort/beauty-world-1-og-duesseldorf-arcaden/';
-
-// 2) Der SMS-Text. Platzhalter: {booking_link} = Link, {customer_name} = Name des Kunden.
-const DEFAULT_SMS_TEMPLATE = 'Vielen Dank für Ihren Anruf bei Beauty World Düsseldorf Arcaden.\n\nTermin online buchen:\n{booking_link}\n\nGespräch mit Lisa bewerten (1-5):\n{feedback_link}\n\nIhr Beauty World Team';
-
-// 3) Absender. ENTWEDER ein Name (max. 11 Zeichen, z. B. "Beautyworld" oder "Lisa")
-//    ODER eine echte seven.io-Nummer (z. B. "+49...").
-//    WICHTIG: Ein Name sieht schoen aus, kann aber KEINE Antworten empfangen.
-//    Fuer Feedback per 1-5 Antwort MUSS hier eine echte Nummer stehen.
-const DEFAULT_SMS_FROM = 'Beautyworld';
-
-// 4) Feedback-Seite (eigener, klar getrennter Link). Leer lassen ('') = kein Feedback-Link in der SMS.
-const FEEDBACK_BASE_URL = 'https://tawanodashboard.netlify.app/feedback';
-
-// 5) HARTE UEBERSTEUERUNG PRO GESCHAEFTSNUMMER (angerufene Nummer).
-//    Genau HIER kannst du fuer einzelne Nummern eine eigene SMS fest eintragen.
-//    Diese Vorlage gewinnt IMMER vor Admin/Supabase.
-const SMS_CONFIG_BY_CALLED_NUMBER = {
-  '+4921186943411': {
-    sms_sender: 'Tawano',
-    append_lead_params: false,
-    booking_link: 'https://tawano.de/voice-agents/',
-    sms_template: 'Danke für Ihren Testanruf. Das war eine Demo des digitalen Telefonmitarbeiters von Tawano. Hier finden Sie weitere Informationen und können sich bei Interesse einen passenden Termin aussuchen: https://tawano.de/voice-agents/',
-  },
-};
-// ============================================================
+// Feedback-Seite = System-URL (kein Nachrichteninhalt), optional per Env ueberschreibbar.
+const FEEDBACK_BASE_URL = String(process.env.FEEDBACK_BASE_URL || 'https://tawanodashboard.netlify.app/feedback').trim();
 
 // Prueft, ob ein Wert eine echte Telefonnummer ist – verwirft KI-Platzhalter wie "<EINGEHENDE_NUMMER>".
 function isRealPhone(value) {
   const s = String(value || '').trim();
   if (!s || /[<>{}]/.test(s)) return false;
   return s.replace(/\D/g, '').length >= 7;
-}
-
-function normalizePhone(value) {
-  return String(value || '').replace(/\D/g, '');
-}
-
-function configOverrideForCalledNumber(calledNumber) {
-  const target = normalizePhone(calledNumber);
-  if (!target) return null;
-  for (const [key, cfg] of Object.entries(SMS_CONFIG_BY_CALLED_NUMBER)) {
-    if (normalizePhone(key) === target) return cfg || null;
-  }
-  return null;
 }
 
 function appendQueryParams(url, params) {
@@ -132,8 +98,9 @@ async function sendViaSeven(payload) {
     return { sent: false, provider: 'seven', message: 'SEVEN_API_KEY nicht gesetzt' };
   }
 
-  // Prioritaet: tenant.sms_sender (pro Kunde) > SMS_FROM env (global) > Default-Name.
-  const smsFrom = String(payload.sms_sender || '').trim() || envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
+  // Absender kommt aus Supabase (tenant.sms_sender) und wird als payload.sms_sender uebergeben.
+  // Der Handler stellt sicher, dass er gesetzt ist (sonst wird gar nicht erst gesendet).
+  const smsFrom = String(payload.sms_sender || '').trim();
   const body = {
     to: payload.to,
     text: payload.message,
@@ -226,18 +193,23 @@ exports.handler = async (event) => {
     return String((dir === 'outbound' ? c.from_number : c.to_number) || c.to_number || c.from_number || '').trim();
   };
 
-  // Telefonnummer ermitteln. Die KI schickt manchmal einen Platzhalter wie
-  // "<EINGEHENDE_NUMMER>" – solche Werte verwerfen und die echte Anrufer-Nummer nehmen.
-  let phone = String(body.phone_number || body.phoneNumber || body.phone || '').trim();
-  if (!isRealPhone(phone)) phone = callerFrom(callInfo);
+  // Telefonnummer ermitteln.
+  // WICHTIG: Die echte Anrufernummer aus dem laufenden Retell-Call hat IMMER Vorrang.
+  // Die vom LLM gelieferte phone_number kann halluziniert/veraltet sein (z. B. eine alte
+  // Nummer aus dem Kontext) und wird nur benutzt, wenn KEIN echter Call-Kontext vorliegt.
+  const llmPhone = String(body.phone_number || body.phoneNumber || body.phone || '').trim();
+  let phone = callerFrom(callInfo);
+  if (!isRealPhone(phone)) phone = isRealPhone(llmPhone) ? llmPhone : '';
 
   const tenantContext = await resolveTenantFromToolBody(body);
   const tenant = tenantContext.tenant;
 
-  // Letzter Versuch: Anrufer-Nummer aus dem von Retell nachgeladenen Call holen.
-  if (!isRealPhone(phone)) phone = callerFrom(tenantContext.call);
+  // Sobald der (ggf. nachgeladene) echte Call vorliegt: dessen Anrufernummer ERZWINGEN.
+  const realCaller = callerFrom(callInfo) || callerFrom(tenantContext.call);
+  if (isRealPhone(realCaller)) phone = realCaller;
+
   if (!isRealPhone(phone)) {
-    return json(400, { ok: false, message: 'Keine gueltige Telefonnummer gefunden. In Retell muss bei dieser Funktion "Payload: args only" AUS sein, damit die Anrufer-Nummer mitgesendet wird.' });
+    return json(400, { ok: false, message: 'Keine gueltige Anrufernummer gefunden. In Retell bei dieser Funktion "Payload: args only" AUS stellen, damit der Call-Kontext (from_number) mitkommt.' });
   }
 
   // Kunden-Einstellungen (SMS-Schalter + eigene Nachricht) aus dem Admin-Control-Center.
@@ -262,17 +234,30 @@ exports.handler = async (event) => {
     || tenant.retell_from_number
     || ''
   ).trim();
-  const calledNumberConfig = configOverrideForCalledNumber(calledNumber) || {};
-  const baseBookingLink = String(calledNumberConfig.booking_link || body.booking_link || body.bookingLink || tenant.booking_link_url || envValue('BOOKING_LINK_URL') || DEFAULT_BOOKING_LINK || '').trim();
+  // ── SMS-Inhalte AUSSCHLIESSLICH aus Supabase (pro Tenant) ──────────────────
+  const template = String(tSettings.sms_template || '').trim();         // analytics_snapshots -> payload.sms_template
+  const smsSender = String(tenant.sms_sender || '').trim();             // tenants.sms_sender
+  const baseBookingLink = String(tenant.booking_link_url || '').trim(); // tenants.booking_link_url
+  const appendLeadParams = Boolean(tSettings.append_lead_params);       // tenant_settings -> payload.append_lead_params
+
+  // Kein hartcodierter Fallback mehr: ohne Vorlage oder Absender wird NICHT gesendet.
+  if (!template) {
+    return json(400, {
+      ok: false, status: 'no_template', tenant: tenant.id, to: phone,
+      message: 'Keine SMS-Vorlage in Supabase fuer Tenant "' + tenant.id + '". Bitte sms_template (tenant_settings) im Admin/Supabase setzen.',
+    });
+  }
+  if (!smsSender) {
+    return json(400, {
+      ok: false, status: 'no_sender', tenant: tenant.id, to: phone,
+      message: 'Kein Absender in Supabase fuer Tenant "' + tenant.id + '". Bitte tenants.sms_sender setzen.',
+    });
+  }
+
   const name = String(body.customer_name || body.customerName || '').trim();
   const resolvedAgentId = String(body.agent_id || (tenantContext.call && tenantContext.call.agent_id) || tenant.retell_agent_id || '').trim();
-  const bookingLink = calledNumberConfig.append_lead_params
-    ? appendQueryParams(baseBookingLink, {
-      p: phone,
-      t: tenant.id,
-      c: body.call_id,
-      name,
-    })
+  const bookingLink = appendLeadParams
+    ? appendQueryParams(baseBookingLink, { p: phone, t: tenant.id, c: body.call_id, name })
     : baseBookingLink;
 
   // Eigener Feedback-Link mit der Kundennummer (und Call-ID, falls vorhanden) - klar getrennt vom Buchungslink.
@@ -283,20 +268,15 @@ exports.handler = async (event) => {
       + (body.call_id ? '&c=' + encodeURIComponent(body.call_id) : ''))
     : '';
 
-  const forcedTemplateByNumber = String(calledNumberConfig.sms_template || '').trim();
-  const template = forcedTemplateByNumber || String(tSettings.sms_template || '').trim() || DEFAULT_SMS_TEMPLATE;
-  // Wichtig: Der SMS-Text wird ausschliesslich zentral aus dem Admin/Supabase-Template gebaut.
+  // SMS-Text ausschliesslich aus dem Supabase-Template bauen.
   let message = String(template)
     .replaceAll('{booking_link}', bookingLink || '')
     .replaceAll('{feedback_link}', feedbackLink || '')
     .replaceAll('{customer_name}', name || '');
-  // If booking link exists but template didn't contain the placeholder, append it
+  // Falls Link vorhanden, Platzhalter aber fehlt: anhaengen.
   if (bookingLink && !message.includes(bookingLink)) {
     message = message.trimEnd() + ' Hier buchen: ' + bookingLink;
   }
-
-  // Absender: sms_sender aus Supabase-Tenant hat hoechste Prioritaet.
-  const smsSender = String(calledNumberConfig.sms_sender || tenant.sms_sender || '').trim() || envValue('SMS_FROM').trim() || DEFAULT_SMS_FROM;
 
   const payload = {
     type: 'send_booking_link',
@@ -328,7 +308,8 @@ exports.handler = async (event) => {
         message,
         provider: result.provider || 'unknown',
         provider_message_id: (firstMsg && firstMsg.id) || (result.response && (result.response.id || result.response.message_id)) || null,
-        status: result.sent ? 'sent' : 'queued',
+        // Code 100 / HTTP 200 = nur ANGENOMMEN. Zustellung (DELIVERED) kommt spaeter per DLR-Webhook.
+        status: result.sent ? 'ACCEPTED' : 'FAILED',
       };
       try {
         await insertRow('sms_logs', Object.assign({}, baseLog, {
@@ -356,9 +337,19 @@ exports.handler = async (event) => {
         }, { serviceRole: true });
       } catch (_) { /* Zaehler optional */ }
     }
+    // seven.io Code 100 / HTTP 200 heisst nur ANGENOMMEN, nicht zugestellt.
+    // Die echte Zustellung (DELIVERED) trifft spaeter per DLR-Webhook (/api/sms-dlr) ein.
+    const providerMessageId = (result.response && Array.isArray(result.response.messages)
+      && result.response.messages[0] && result.response.messages[0].id) || null;
     return json(result.sent ? 200 : 502, {
       ok: result.sent,
-      status: result.sent ? 'queued' : 'failed',
+      status: result.sent ? 'accepted' : 'failed',
+      delivered: false,
+      delivery_status: result.sent ? 'ACCEPTED' : 'FAILED',
+      provider_message_id: providerMessageId,
+      note: result.sent
+        ? 'SMS von seven.io angenommen (noch NICHT zugestellt). Endgueltiger Status folgt per Delivery-Report.'
+        : 'SMS wurde von seven.io nicht angenommen.',
       tenant,
       sms: result,
       to: phone,
@@ -377,7 +368,5 @@ exports.handler = async (event) => {
 };
 
 exports.__test = {
-  DEFAULT_SMS_TEMPLATE,
   appendQueryParams,
-  configOverrideForCalledNumber,
 };
