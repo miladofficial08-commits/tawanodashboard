@@ -70,8 +70,9 @@ exports.handler = async (event) => {
       retellStats(t.retell_agent_id, apiKey),
       getTenantSettings(t.id, { serviceRole: true }),
     ]);
-    // Tatsaechlich aktive SMS-Nachricht: gespeicherte Kunden-Einstellung, sonst Standard-Text.
-    const effectiveSms = (settings.sms_template && String(settings.sms_template).trim()) || DEFAULT_SMS_TEMPLATE;
+    // Tatsaechlich aktive SMS-Nachricht = ausschliesslich die in Supabase gespeicherte Vorlage.
+    // Kein hartcodierter Standard mehr: leer bedeutet "nicht gesetzt" (dann wird auch nicht gesendet).
+    const effectiveSms = String(settings.sms_template || '').trim();
 
     // Echte Nutzung: Retell = echter Preis pro Anruf, Twilio = abgerechnete Minuten (aufgerundet) x Preis, SMS = echter seven.io-Preis.
     const retellCost = Number(stats.retellCost) || 0;
@@ -92,7 +93,14 @@ exports.handler = async (event) => {
       sms_sender: t.sms_sender || '',
       minutes_budget: Number(settings.minutes_budget) || 0,
       sms_enabled: settings.sms_enabled !== false,
+      detailed_analysis: Boolean(settings.detailed_analysis),
+      append_lead_params: Boolean(settings.append_lead_params),
       sms_template: effectiveSms,
+      // Terminbuchung (Cal.com) - im Admin-Terminal bearbeitbar.
+      booking_enabled: settings.booking_enabled === true,
+      sms_appointment_template: String(settings.sms_appointment_template || ''),
+      calcom_api_key: String(settings.calcom_api_key || ''),
+      calcom_event_type_id: String(settings.calcom_event_type_id || ''),
       stats: stats,
       cost: {
         minutes: Number(stats.minutes) || 0,

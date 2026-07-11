@@ -10,7 +10,7 @@ const calcom = require('./_lib/calcom');
 const DEFAULT_TIMEZONE = 'Europe/Berlin';
 const DEFAULT_SMS_FROM = 'Tawano';
 const DEFAULT_APPOINTMENT_SMS_TEMPLATE =
-  'Danke für Ihren Testanruf. Ihr kurzes Gespräch mit dem Tawano Team ist für {appointment_date} um {appointment_time} vorgemerkt. Wir zeigen Ihnen, wie ein digitaler Telefonmitarbeiter für Ihren Betrieb aussehen könnte. Weitere Infos: https://tawano.de/voice-agents/';
+  'Danke für Ihren Testanruf. Ihr kurzes Gespräch mit dem Tawano Team ist für {appointment_date} um {appointment_time} vorgemerkt. Meeting-Link: {meeting_link}';
 
 function isRealPhone(value) {
   const s = String(value || '').trim();
@@ -34,6 +34,39 @@ function parseInput(raw) {
   return Object.assign({}, payload, args);
 }
 
+function callerPhoneFromCall(callInfo) {
+  if (!callInfo || typeof callInfo !== 'object') return '';
+  const dir = String(callInfo.direction || '').toLowerCase();
+  return String((dir === 'outbound' ? callInfo.to_number : callInfo.from_number)
+    || callInfo.from_number
+    || callInfo.to_number
+    || '').trim();
+}
+
+function normalizeToolInput(raw) {
+  const input = parseInput(raw);
+  const callInfo = (input.call && typeof input.call === 'object') ? input.call : {};
+  if (!String(input.call_id || input.retell_call_id || '').trim() && callInfo.call_id) {
+    input.call_id = String(callInfo.call_id).trim();
+  }
+  const phone = String(input.phone_number || input.phoneNumber || input.phone || input.confirmed_mobile_number || '').trim();
+  if (!isRealPhone(phone)) {
+    const callerPhone = callerPhoneFromCall(callInfo);
+    if (isRealPhone(callerPhone)) input.phone_number = callerPhone;
+  }
+  return input;
+}
+
+function bookingPhoneFromInput(input, callInfo, fetchedCall) {
+  const phone = String(input.phone_number || input.phoneNumber || input.phone || input.confirmed_mobile_number || '').trim();
+  if (isRealPhone(phone)) return phone;
+  const fromPayload = callerPhoneFromCall(callInfo);
+  if (isRealPhone(fromPayload)) return fromPayload;
+  const fromFetchedCall = callerPhoneFromCall(fetchedCall);
+  if (isRealPhone(fromFetchedCall)) return fromFetchedCall;
+  return phone;
+}
+
 function parseDate(dateStr) {
   if (!dateStr) return null;
   const m = String(dateStr).match(/^\d{4}-\d{2}-\d{2}$/);
@@ -52,11 +85,22 @@ function parseTime(timeStr) {
   return { hour: h, minute: min };
 }
 
-function isTavanoContext(tenant) {
-  if (!tenant) return false;
-  const haystack = [tenant.id, tenant.slug, tenant.name, tenant.sms_sender]
-    .map((v) => String(v || '').toLowerCase()).join(' ');
-  return /tavano|tawano/.test(haystack);
+function isTavanoContext(tenant, calledNumber) {
+  const source = tenant || {};
+  const haystack = [source.id, source.slug, source.name, source.sms_sender]
+    .concat([calledNumber])
+    .map((v) => String(v || '').toLowerCase().replace(/\D/g, '') || String(v || '').toLowerCase())
+    .join(' ');
+  return /tavano|tawano|4921186943411/.test(haystack);
+}
+
+function calledBusinessNumberFrom(callInfo) {
+  if (!callInfo || typeof callInfo !== 'object') return '';
+  const dir = String(callInfo.direction || '').toLowerCase();
+  return String((dir === 'outbound' ? callInfo.from_number : callInfo.to_number)
+    || callInfo.to_number
+    || callInfo.from_number
+    || '').trim();
 }
 
 exports.handler = async (event) => {
@@ -70,7 +114,7 @@ exports.handler = async (event) => {
   const raw = readBody(event);
   if (!raw) return json(400, { success: false, message: 'Invalid JSON body' });
 
-  const input = parseInput(raw);
+  const input = normalizeToolInput(raw);
 
   // Erforderliche Felder ermitteln
   const dateVal = String(input.date || input.appointment_date || '').trim();
@@ -78,9 +122,13 @@ exports.handler = async (event) => {
   let phone = String(input.phone_number || input.phoneNumber || input.phone || input.confirmed_mobile_number || '').trim();
 
   // Phone aus Retell call fallback
-  const callInfo = (raw.call && typeof raw.call === 'object') ? raw.call : {};
-  if (!isRealPhone(phone) && callInfo.from_number) phone = callInfo.from_number;
-  if (!isRealPhone(phone) && callInfo.to_number) phone = callInfo.to_number;
+  const callInfo = (input.call && typeof input.call === 'object') ? input.call : {};
+  phone = bookingPhoneFromInput(input, callInfo);
+
+  // Tenant + Call-Kontext frueh laden, damit call_id auch die Kundennummer liefern kann.
+  const tenantContext = await resolveTenantFromToolBody(input);
+  const tenant = tenantContext.tenant;
+  phone = bookingPhoneFromInput(Object.assign({}, input, { phone_number: phone }), callInfo, tenantContext.call);
 
   // Validation: Pflichtfelder
   const missing = [];
@@ -116,14 +164,17 @@ exports.handler = async (event) => {
   }
 
   // Tenant + Cal.com Config
-  const tenantContext = await resolveTenantFromToolBody(input);
-  const tenant = tenantContext.tenant;
-  if (!isTavanoContext(tenant)) {
-    return json(403, { success: false, message: 'Terminbuchung ist fuer diesen Kunden nicht aktiviert.' });
-  }
+  const calledNumber = String(input.called_number || input.system_number || input.systemNumber || calledBusinessNumberFrom(callInfo) || '').trim();
 
   let tSettings = {};
   try { tSettings = await getTenantSettings(tenant && tenant.id, { serviceRole: true }); } catch (_) { }
+
+  // Terminbuchung wird ueber das Admin-Terminal gesteuert (settings.booking_enabled).
+  // Rueckfall: der alte Tawano-Kontext bleibt aktiv, solange der Schalter noch nicht gesetzt ist.
+  const bookingEnabled = tSettings.booking_enabled === true || isTavanoContext(tenant, calledNumber);
+  if (!bookingEnabled) {
+    return json(403, { success: false, message: 'Terminbuchung ist fuer diesen Kunden nicht aktiviert.' });
+  }
 
   const apiKey = String(tSettings.calcom_api_key || envValue('CALCOM_API_KEY') || '').trim();
   const eventTypeId = String(tSettings.calcom_event_type_id || envValue('CALCOM_EVENT_TYPE_ID') || '').trim();
@@ -198,7 +249,8 @@ exports.handler = async (event) => {
   const template = String(tSettings.sms_appointment_template || '').trim() || DEFAULT_APPOINTMENT_SMS_TEMPLATE;
   const message = String(template)
     .replaceAll('{appointment_date}', appointmentDate)
-    .replaceAll('{appointment_time}', appointmentTime);
+    .replaceAll('{appointment_time}', appointmentTime)
+    .replaceAll('{meeting_link}', booking.meetingUrl || 'wird separat zugesendet');
 
   const smsSender = String(tSettings.sms_sender || (tenant && tenant.sms_sender) || '').trim() || DEFAULT_SMS_FROM;
 
@@ -238,5 +290,7 @@ exports.handler = async (event) => {
 
 exports.__test = {
   DEFAULT_APPOINTMENT_SMS_TEMPLATE,
+  bookingPhoneFromInput,
+  normalizeToolInput,
   isTavanoContext,
 };

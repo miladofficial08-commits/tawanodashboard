@@ -28,6 +28,13 @@ exports.handler = async (event) => {
   if (body.minutes_budget !== undefined) settings.minutes_budget = Number(body.minutes_budget) || 0;
   if (body.sms_enabled !== undefined) settings.sms_enabled = Boolean(body.sms_enabled);
   if (body.sms_template !== undefined) settings.sms_template = String(body.sms_template);
+  if (body.detailed_analysis !== undefined) settings.detailed_analysis = Boolean(body.detailed_analysis);
+  if (body.append_lead_params !== undefined) settings.append_lead_params = Boolean(body.append_lead_params);
+  // Terminbuchung (Cal.com) - komplett ueber das Admin-Terminal steuerbar.
+  if (body.booking_enabled !== undefined) settings.booking_enabled = Boolean(body.booking_enabled);
+  if (body.sms_appointment_template !== undefined) settings.sms_appointment_template = String(body.sms_appointment_template);
+  if (body.calcom_api_key !== undefined) settings.calcom_api_key = String(body.calcom_api_key).trim();
+  if (body.calcom_event_type_id !== undefined) settings.calcom_event_type_id = String(body.calcom_event_type_id).trim();
 
   try {
     if (Object.keys(patch).length) {
