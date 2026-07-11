@@ -1,8 +1,12 @@
 // Retell Custom Tool: echte freie Cal.com-Zeiten liefern (aktuell nur Tawano).
 //
-// Liefert maximal 2 wirklich freie Slots (07–20 Uhr, Mo–So, Europe/Berlin) im
-// einfachen Format { success, slots: [{ date, time, label }] }.
+// Liefert bis zu MAX_SLOTS_DEFAULT wirklich freie Slots (07–20 Uhr, Mo–So,
+// Europe/Berlin) im Format { success, slots: [{ date, time, label }] }.
 // Keine Zufallszeiten – ausschliesslich das, was Cal.com als frei meldet.
+//
+// WICHTIG: Bei einer Zeit-Praeferenz (z. B. "nachmittags") werden MEHRERE Slots
+// AM SELBEN Tag geliefert (z. B. 14:00, 15:00, 16:00), nicht nur der frueheste
+// pro Tag. Sonst kann der Agent Nachmittags-Termine nicht korrekt aufzaehlen.
 
 const { envValue, json, readBody, resolveTenantFromToolBody, getTenantSettings } = require('./_lib/tenant');
 const calcom = require('./_lib/calcom');
@@ -10,7 +14,7 @@ const { isAuthorizedToolRequest } = require('./_lib/retell-auth');
 const { selectCalendarConfig } = require('./_lib/calendar-config');
 
 const LOOKAHEAD_DAYS = 14;
-const MAX_SLOTS_DEFAULT = 2;
+const MAX_SLOTS_DEFAULT = 3;
 const DEFAULT_TIMEZONE = 'Europe/Berlin';
 
 // Robust Input auslesen: args, arguments, oder direktes body, plus Retell full payload
@@ -55,17 +59,59 @@ function filterByTimePreference(slots, preference) {
   });
 }
 
+// Flach ueber ALLE Tage: nimmt mehrere Slots (auch am selben Tag) in
+// chronologischer Reihenfolge. So kann der Agent z. B. drei Nachmittags-
+// Termine desselben Tages nennen, statt nur den fruehesten pro Tag.
+function pickSlotsFlat(byDate, limit, now, matchFn) {
+  const reference = now instanceof Date ? now : new Date();
+  const all = [];
+  Object.keys(byDate || {}).sort().forEach((day) => {
+    (byDate[day] || []).forEach((d) => {
+      if (!(d instanceof Date) || Number.isNaN(d.getTime())) return;
+      if (d.getTime() < reference.getTime()) return;
+      if (!calcom.validateSlot(d, reference).ok) return;
+      if (typeof matchFn === 'function' && !matchFn(d)) return;
+      all.push(d);
+    });
+  });
+  all.sort((a, b) => a.getTime() - b.getTime());
+  return all.slice(0, Math.max(1, Number(limit) || 3)).map((slot) => ({
+    date: calcom.berlinDateKey(slot),
+    time: calcom.formatBerlinTime(slot),
+    label: calcom.formatBerlinWeekday(slot) + ' um ' + calcom.formatBerlinSpokenTime(slot),
+    start: slot.toISOString(),
+  }));
+}
+
 function pickSlotsByPreference(byDate, limit, now, preference) {
   const pref = normalizeTimePreference(preference);
+  // Ohne Praeferenz: pro Tag der frueheste Slot ueber mehrere Tage (Abwechslung).
   if (pref === 'any') return calcom.pickSlots(byDate, limit, now);
-  const filtered = {};
+  // Mit Praeferenz: mehrere passende Slots (auch am selben Tag) chronologisch.
+  return pickSlotsFlat(byDate, limit, now, (date) => (
+    filterByTimePreference([{ time: calcom.formatBerlinTime(date) }], pref).length > 0
+  ));
+}
+
+function pickSlotsForRequestedTime(byDate, limit, now, requestedTime) {
+  const match = String(requestedTime || '').trim().match(/^(\d{1,2})(?::|\.)(\d{2})$/);
+  if (!match) return [];
+  const targetMinutes = Number(match[1]) * 60 + Number(match[2]);
+  const exact = {};
+  const nearest = {};
   Object.entries(byDate || {}).forEach(([day, dates]) => {
-    const matching = (dates || []).filter((date) => {
-      return filterByTimePreference([{ time: calcom.formatBerlinTime(date) }], pref).length > 0;
+    const sorted = (dates || []).slice().sort((a, b) => {
+      const minutes = (date) => {
+        const [h, m] = calcom.formatBerlinTime(date).split(':').map(Number);
+        return h * 60 + m;
+      };
+      return Math.abs(minutes(a) - targetMinutes) - Math.abs(minutes(b) - targetMinutes);
     });
-    if (matching.length) filtered[day] = matching;
+    const matching = sorted.filter((date) => calcom.formatBerlinTime(date) === String(match[1]).padStart(2, '0') + ':' + match[2]);
+    if (matching.length) exact[day] = matching;
+    if (sorted.length) nearest[day] = sorted;
   });
-  return calcom.pickSlots(filtered, limit, now);
+  return calcom.pickSlots(Object.keys(exact).length ? exact : nearest, limit, now);
 }
 
 exports.handler = async (event) => {
@@ -110,6 +156,7 @@ exports.handler = async (event) => {
   if (dateTo <= dateFrom) dateTo = new Date(dateFrom.getTime() + LOOKAHEAD_DAYS * 86400000);
   const limit = Math.max(1, Math.min(5, Number(input.limit) || MAX_SLOTS_DEFAULT));
   const timePreference = String(input.time_preference || '').trim() || 'any';
+  const requestedTime = String(input.preferred_time || input.requested_time || '').trim();
   const timezone = String(input.timezone || '').trim() || DEFAULT_TIMEZONE;
 
   // Nur Europe/Berlin unterstützt
@@ -127,7 +174,10 @@ exports.handler = async (event) => {
     return json(502, { success: false, message: 'Freie Zeiten konnten nicht geladen werden.', detail: slotsResult.reason });
   }
 
-  const slots = pickSlotsByPreference(slotsResult.byDate, limit, now, timePreference)
+  const selected = requestedTime
+    ? pickSlotsForRequestedTime(slotsResult.byDate, limit, now, requestedTime)
+    : pickSlotsByPreference(slotsResult.byDate, limit, now, timePreference);
+  const slots = selected
     .map(({ date, time, label }) => ({ date, time, timezone: DEFAULT_TIMEZONE, label }));
 
   // Nach Zeit-Präferenz filtern
@@ -138,4 +188,4 @@ exports.handler = async (event) => {
   return json(200, { success: true, slots });
 };
 
-exports.__test = { filterByTimePreference, normalizeTimePreference, pickSlotsByPreference };
+exports.__test = { filterByTimePreference, normalizeTimePreference, pickSlotsByPreference, pickSlotsForRequestedTime, pickSlotsFlat };
