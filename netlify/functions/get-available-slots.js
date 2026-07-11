@@ -55,6 +55,19 @@ function filterByTimePreference(slots, preference) {
   });
 }
 
+function pickSlotsByPreference(byDate, limit, now, preference) {
+  const pref = normalizeTimePreference(preference);
+  if (pref === 'any') return calcom.pickSlots(byDate, limit, now);
+  const filtered = {};
+  Object.entries(byDate || {}).forEach(([day, dates]) => {
+    const matching = (dates || []).filter((date) => {
+      return filterByTimePreference([{ time: calcom.formatBerlinTime(date) }], pref).length > 0;
+    });
+    if (matching.length) filtered[day] = matching;
+  });
+  return calcom.pickSlots(filtered, limit, now);
+}
+
 exports.handler = async (event) => {
   const method = (event.httpMethod || 'GET').toUpperCase();
   if (method !== 'POST' && method !== 'GET') {
@@ -114,12 +127,10 @@ exports.handler = async (event) => {
     return json(502, { success: false, message: 'Freie Zeiten konnten nicht geladen werden.', detail: slotsResult.reason });
   }
 
-  let slots = calcom.pickSlots(slotsResult.byDate, limit, now)
+  const slots = pickSlotsByPreference(slotsResult.byDate, limit, now, timePreference)
     .map(({ date, time, label }) => ({ date, time, timezone: DEFAULT_TIMEZONE, label }));
 
   // Nach Zeit-Präferenz filtern
-  slots = filterByTimePreference(slots, timePreference);
-
   if (!slots.length) {
     return json(200, { success: false, status: 'no_slots_available', message: 'Keine passenden freien Zeiten gefunden.' });
   }
@@ -127,4 +138,4 @@ exports.handler = async (event) => {
   return json(200, { success: true, slots });
 };
 
-exports.__test = { filterByTimePreference, normalizeTimePreference };
+exports.__test = { filterByTimePreference, normalizeTimePreference, pickSlotsByPreference };

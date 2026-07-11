@@ -75,6 +75,12 @@ status = 200
 force = true
 
 [[redirects]]
+from = "/api/retell-call-events"
+to = "/.netlify/functions/retell-call-events"
+status = 200
+force = true
+
+[[redirects]]
 from = "/api/call-detail"
 to = "/.netlify/functions/get-call-detail"
 status = 200

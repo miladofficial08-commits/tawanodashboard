@@ -202,6 +202,22 @@ function testFullRetellPayloadProvidesCallIdentity() {
   assert.equal(input.phone_number, '+491631283971');
 }
 
+function testAfternoonSelectionFiltersBeforeChoosingDailySlot() {
+  const now = calcom.berlinWallClockToUtc(2026, 7, 13, 6, 0);
+  const byDate = {
+    '2026-07-13': [
+      calcom.berlinWallClockToUtc(2026, 7, 13, 7, 0),
+      calcom.berlinWallClockToUtc(2026, 7, 13, 15, 0),
+    ],
+    '2026-07-14': [
+      calcom.berlinWallClockToUtc(2026, 7, 14, 7, 0),
+      calcom.berlinWallClockToUtc(2026, 7, 14, 16, 0),
+    ],
+  };
+  const slots = slotsTest.pickSlotsByPreference(byDate, 2, now, 'nachmittags');
+  assert.deepEqual(slots.map((slot) => slot.time), ['15:00', '16:00']);
+}
+
 function run() {
   testBerlinWallClockToUtcSummer();
   testBerlinWallClockToUtcWinter();
@@ -223,6 +239,7 @@ function run() {
   testBookingMustBeExplicitlyEnabled();
   testGermanTimePreferencesAreNormalized();
   testFullRetellPayloadProvidesCallIdentity();
+  testAfternoonSelectionFiltersBeforeChoosingDailySlot();
   console.log('tavano-booking.test.js: all assertions passed');
 }
 
