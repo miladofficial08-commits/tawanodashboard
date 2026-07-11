@@ -231,6 +231,14 @@ button,input{font-family:'Manrope',sans-serif}
 .fb-stars{font-size:13px;color:#66798f;font-weight:700;margin-top:4px}
 .fb-dist{flex:1;display:flex;flex-direction:column;gap:6px}
 @media(max-width:980px){.an-grid{grid-template-columns:1fr}}
+.transcript{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;padding-right:4px}
+.tr{padding:9px 12px;border-radius:10px;font-size:14px;line-height:1.5}
+.tr strong{display:block;font-size:10px;font-weight:800;text-transform:uppercase;margin-bottom:3px;letter-spacing:.3px}
+.tr-agent{background:#eef4ff;color:#213b57}
+.tr-agent strong{color:#1d4ed8}
+.tr-user{background:#eaf9f1;color:#0c3d2a}
+.tr-user strong{color:#0f8a5f}
+.transcript-audio{width:100%;margin-bottom:10px}
 @media(max-width:1120px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:980px){.main{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.right{position:static}.task-meta{grid-template-columns:1fr}}
 @media(max-width:680px){.login{grid-template-columns:1fr}.login-left{padding:34px 18px 10px}.login-right{padding:16px}.login-mini{grid-template-columns:1fr}.cards{grid-template-columns:1fr}.hero h1{font-size:28px}.summary-line{font-size:17px}.task-head,.task-footer{align-items:flex-start}}
@@ -784,6 +792,22 @@ function normalizePhoneDe(value) {
   else cleaned = '+' + cleaned;
   return /^\+[1-9]\d{7,14}$/.test(cleaned) ? cleaned : '';
 }
+function phoneDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+function customerPhone(call) {
+  const direct = String(call && call.phoneNumber || '').trim();
+  const from = String(call && (call.from_number || call.fromNumber) || '').trim();
+  const to = String(call && (call.to_number || call.toNumber) || '').trim();
+  // Kundennummer nie = eigene Business-Nummer. Anrufrichtung ist am zuverlaessigsten:
+  // inbound -> Kunde = from_number, outbound -> Kunde = to_number.
+  const direction = String(call && call.direction || '').toLowerCase();
+  if (direction === 'inbound') return from || direct || to;
+  if (direction === 'outbound') return to || direct || from;
+  const tenantFrom = String(currentTenant && currentTenant.retell_from_number || '').trim();
+  if (from && tenantFrom && phoneDigits(from) === phoneDigits(tenantFrom)) return to || direct || from;
+  return direct || from || to;
+}
 function toGermanCallError(message) {
   const txt = String(message || '');
   const lower = txt.toLowerCase();
@@ -827,7 +851,7 @@ function isAgentCall(call) {
 function customerLabel(call) {
   const name = String(call.customerName || call.name || '').trim();
   if (name) return name;
-  const phone = String(call.phoneNumber || call.toNumber || call.to_number || '').trim();
+  const phone = customerPhone(call);
   if (phone) return 'Kundin ' + phone;
   return 'Neue Anfrage';
 }
@@ -965,7 +989,7 @@ function buildItemModel(call) {
     summary: summaryFor(call),
     nextStep,
     value: valueRangeForCall(call),
-    phone: String(call.phoneNumber || call.to_number || call.toNumber || '').trim(),
+    phone: customerPhone(call),
     customer: customerLabel(call),
     createdAt: call.createdAt || call.updatedAt || null,
   };
@@ -1318,7 +1342,7 @@ function contactInitials(name, phone) {
 function buildContacts() {
   const map = new Map();
   calls.forEach((call) => {
-    const phone = String(call.phoneNumber || call.to_number || call.toNumber || '').trim();
+    const phone = customerPhone(call);
     if (!phone) return;
     if (!map.has(phone)) map.set(phone, { phone: phone, name: '', calls: [], firstAt: null, lastAt: null });
     const c = map.get(phone);
@@ -1469,7 +1493,7 @@ function renderList(items) {
 function contactCustomer(kind, callIdx) {
   const call = calls[callIdx];
   if (!call) return;
-  const phone = String(call.phoneNumber || call.to_number || call.toNumber || '').trim();
+  const phone = customerPhone(call);
   if (!phone) return;
   if (kind === 'call') {
     window.open('tel:' + phone, '_self');
@@ -1501,7 +1525,7 @@ async function openDetail(callIdx) {
   const call = calls[callIdx];
   if (!call) return;
   const info = classifyCall(call);
-  const phone = String(call.phoneNumber || call.to_number || call.toNumber || '').trim();
+  const phone = customerPhone(call);
   const customerName = String(call.customerName || call.name || '').trim();
   const summaryBlock = detailSummarySource(call);
 
@@ -1525,6 +1549,50 @@ async function openDetail(callIdx) {
         renderFrom(tData.translated);
       }
     } catch (_) { /* Übersetzung optional */ }
+  }
+
+  // Detail-Analyse: volles Transkript + Aufnahme (nur wenn fuer diesen Kunden aktiviert, z. B. Tawano).
+  if (currentTenant && currentTenant.detailed_analysis && call.call_id) {
+    const bodyEl = document.getElementById('detail-body');
+    if (bodyEl) {
+      const sec = document.createElement('div');
+      sec.className = 'detail-section';
+      sec.innerHTML = '<em>📞 Vollständiges Gespräch</em><div id="transcript-body" class="empty">Transkript wird geladen...</div>';
+      bodyEl.appendChild(sec);
+      loadCallTranscript(call.call_id);
+    }
+  }
+}
+
+async function loadCallTranscript(callId) {
+  const el = document.getElementById('transcript-body');
+  if (!el) return;
+  try {
+    const res = await fetch(serverUrl() + '/api/call-detail', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ call_id: callId }) });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { el.textContent = 'Transkript nicht verfügbar.'; return; }
+    const c = data.call || {};
+    let html = '';
+    const chips = [];
+    if (c.call_successful !== null && c.call_successful !== undefined) chips.push('<span class="chip-mood ' + (c.call_successful ? 'pos' : 'neg') + '">' + (c.call_successful ? 'Erfolgreich' : 'Nicht erfolgreich') + '</span>');
+    if (c.in_voicemail) chips.push('<span class="chip-mood neu">Mailbox</span>');
+    if (c.duration_ms) chips.push('<span class="chip-topic">Dauer ' + Math.round(c.duration_ms / 1000) + ' Sek</span>');
+    if (chips.length) html += '<div class="detail-chips" style="margin-bottom:10px">' + chips.join('') + '</div>';
+    if (c.recording_url) html += '<audio class="transcript-audio" controls src="' + escHtml(c.recording_url) + '"></audio>';
+    if (Array.isArray(c.transcript_object) && c.transcript_object.length) {
+      html += '<div class="transcript">' + c.transcript_object.map((t) => {
+        const isAgent = String(t.role || '') === 'agent';
+        return '<div class="tr ' + (isAgent ? 'tr-agent' : 'tr-user') + '"><strong>' + (isAgent ? 'Agent' : 'Anrufer') + '</strong>' + escHtml(t.content || '') + '</div>';
+      }).join('') + '</div>';
+    } else if (c.transcript) {
+      html += '<div class="transcript"><div class="tr tr-agent">' + escHtml(c.transcript).replace(/\n/g, '<br>') + '</div></div>';
+    } else {
+      html += '<div class="empty">Kein Transkript vorhanden.</div>';
+    }
+    el.className = '';
+    el.innerHTML = html;
+  } catch (e) {
+    el.textContent = 'Transkript nicht verfügbar.';
   }
 }
 
