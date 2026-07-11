@@ -218,6 +218,27 @@ function testAfternoonSelectionFiltersBeforeChoosingDailySlot() {
   assert.deepEqual(slots.map((slot) => slot.time), ['15:00', '16:00']);
 }
 
+function testRequestedExactTimeWinsOverEarliestSlot() {
+  const now = calcom.berlinWallClockToUtc(2026, 7, 13, 6, 0);
+  const byDate = { '2026-07-14': [
+    calcom.berlinWallClockToUtc(2026, 7, 14, 7, 0),
+    calcom.berlinWallClockToUtc(2026, 7, 14, 13, 0),
+  ] };
+  const slots = slotsTest.pickSlotsForRequestedTime(byDate, 2, now, '13:00');
+  assert.equal(slots[0].time, '13:00');
+}
+
+function testRequestedTimeWindowReturnsFirstSlotInsideWindow() {
+  const now = calcom.berlinWallClockToUtc(2026, 7, 13, 6, 0);
+  const byDate = { '2026-07-14': [
+    calcom.berlinWallClockToUtc(2026, 7, 14, 7, 0),
+    calcom.berlinWallClockToUtc(2026, 7, 14, 14, 30),
+    calcom.berlinWallClockToUtc(2026, 7, 14, 16, 0),
+  ] };
+  const slots = slotsTest.pickSlotsInTimeRange(byDate, 2, now, '15:00', '17:00');
+  assert.equal(slots[0].time, '16:00');
+}
+
 function run() {
   testBerlinWallClockToUtcSummer();
   testBerlinWallClockToUtcWinter();
@@ -240,6 +261,8 @@ function run() {
   testGermanTimePreferencesAreNormalized();
   testFullRetellPayloadProvidesCallIdentity();
   testAfternoonSelectionFiltersBeforeChoosingDailySlot();
+  testRequestedExactTimeWinsOverEarliestSlot();
+  testRequestedTimeWindowReturnsFirstSlotInsideWindow();
   console.log('tavano-booking.test.js: all assertions passed');
 }
 

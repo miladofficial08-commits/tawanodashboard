@@ -114,6 +114,21 @@ function pickSlotsForRequestedTime(byDate, limit, now, requestedTime) {
   return calcom.pickSlots(Object.keys(exact).length ? exact : nearest, limit, now);
 }
 
+function pickSlotsInTimeRange(byDate, limit, now, timeFrom, timeTo) {
+  const toMinutes = (value) => {
+    const match = String(value || '').trim().match(/^(\d{1,2})(?::|\.)(\d{2})$/);
+    return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+  };
+  const from = toMinutes(timeFrom);
+  const to = toMinutes(timeTo);
+  if (from == null || to == null || to < from) return [];
+  return pickSlotsFlat(byDate, limit, now, (date) => {
+    const [hour, minute] = calcom.formatBerlinTime(date).split(':').map(Number);
+    const value = hour * 60 + minute;
+    return value >= from && value <= to;
+  });
+}
+
 exports.handler = async (event) => {
   const method = (event.httpMethod || 'GET').toUpperCase();
   if (method !== 'POST' && method !== 'GET') {
@@ -157,6 +172,8 @@ exports.handler = async (event) => {
   const limit = Math.max(1, Math.min(5, Number(input.limit) || MAX_SLOTS_DEFAULT));
   const timePreference = String(input.time_preference || '').trim() || 'any';
   const requestedTime = String(input.preferred_time || input.requested_time || '').trim();
+  const timeFrom = String(input.time_from || '').trim();
+  const timeTo = String(input.time_to || '').trim();
   const timezone = String(input.timezone || '').trim() || DEFAULT_TIMEZONE;
 
   // Nur Europe/Berlin unterstützt
@@ -174,9 +191,11 @@ exports.handler = async (event) => {
     return json(502, { success: false, message: 'Freie Zeiten konnten nicht geladen werden.', detail: slotsResult.reason });
   }
 
-  const selected = requestedTime
-    ? pickSlotsForRequestedTime(slotsResult.byDate, limit, now, requestedTime)
-    : pickSlotsByPreference(slotsResult.byDate, limit, now, timePreference);
+  const selected = timeFrom && timeTo
+    ? pickSlotsInTimeRange(slotsResult.byDate, limit, now, timeFrom, timeTo)
+    : (requestedTime
+      ? pickSlotsForRequestedTime(slotsResult.byDate, limit, now, requestedTime)
+      : pickSlotsByPreference(slotsResult.byDate, limit, now, timePreference));
   const slots = selected
     .map(({ date, time, label }) => ({ date, time, timezone: DEFAULT_TIMEZONE, label }));
 
@@ -188,4 +207,4 @@ exports.handler = async (event) => {
   return json(200, { success: true, slots });
 };
 
-exports.__test = { filterByTimePreference, normalizeTimePreference, pickSlotsByPreference, pickSlotsForRequestedTime, pickSlotsFlat };
+exports.__test = { filterByTimePreference, normalizeTimePreference, pickSlotsByPreference, pickSlotsForRequestedTime, pickSlotsInTimeRange, pickSlotsFlat };

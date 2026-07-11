@@ -34,9 +34,16 @@ exports.handler = async (event) => {
     }, { serviceRole: true });
     return json(200, { ok: true, stored: true });
   } catch (error) {
-    // Tabelle fehlt noch oder RLS blockt: ins Function-Log schreiben, Kunde sieht trotzdem "Danke".
-    console.log('[submit-feedback] konnte nicht speichern:', String(error && error.message ? error.message : error),
-      '| phone=', phone, '| rating=', rating, '| call_id=', callId);
-    return json(200, { ok: true, stored: false });
+    try {
+      await insertRow('analytics_snapshots', {
+        tenant_id: tenantId,
+        snapshot_type: 'sms_feedback',
+        payload: { phone_number: phone || null, rating, message: 'via feedback-link', call_id: callId || null },
+      }, { serviceRole: true });
+      return json(200, { ok: true, stored: true, storage: 'analytics_snapshots' });
+    } catch (fallbackError) {
+      console.log('[submit-feedback] konnte nicht speichern:', String(fallbackError && fallbackError.message ? fallbackError.message : fallbackError));
+      return json(500, { ok: false, stored: false, message: 'Feedback konnte nicht gespeichert werden.' });
+    }
   }
 };

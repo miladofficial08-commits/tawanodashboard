@@ -93,6 +93,12 @@ status = 200
 force = true
 
 [[redirects]]
+from = "/api/feedback-list"
+to = "/.netlify/functions/feedback-list"
+status = 200
+force = true
+
+[[redirects]]
 from = "/api/tavano-lead"
 to = "/.netlify/functions/tavano-lead"
 status = 200
