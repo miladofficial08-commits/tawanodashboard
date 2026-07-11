@@ -4,20 +4,14 @@
 // einfachen Format { success, slots: [{ date, time, label }] }.
 // Keine Zufallszeiten – ausschliesslich das, was Cal.com als frei meldet.
 
-const { envValue, json, readBody } = require('./_lib/tenant');
+const { envValue, json, readBody, resolveTenantFromToolBody, getTenantSettings } = require('./_lib/tenant');
 const calcom = require('./_lib/calcom');
+const { isAuthorizedToolRequest } = require('./_lib/retell-auth');
+const { selectCalendarConfig } = require('./_lib/calendar-config');
 
 const LOOKAHEAD_DAYS = 14;
 const MAX_SLOTS_DEFAULT = 2;
 const DEFAULT_TIMEZONE = 'Europe/Berlin';
-
-function isAuthorized(event) {
-  const expected = envValue('RETELL_TOOL_SECRET').trim();
-  if (!expected) return true;
-  const headers = event.headers || {};
-  const incoming = String(headers['x-retell-tool-secret'] || headers['X-Retell-Tool-Secret'] || '').trim();
-  return incoming && incoming === expected;
-}
 
 // Robust Input auslesen: args, arguments, oder direktes body, plus Retell full payload
 function parseInput(raw) {
@@ -36,9 +30,20 @@ function parseDate(dateStr) {
 }
 
 // Filtert slots nach time_preference (any|morning|afternoon|evening)
+function normalizeTimePreference(value) {
+  const key = String(value || '').trim().toLowerCase();
+  const aliases = {
+    morning: 'morning', morgens: 'morning', vormittag: 'morning', vormittags: 'morning',
+    afternoon: 'afternoon', nachmittag: 'afternoon', nachmittags: 'afternoon',
+    evening: 'evening', abend: 'evening', abends: 'evening',
+    any: 'any', egal: 'any', beliebig: 'any',
+  };
+  return aliases[key] || 'any';
+}
+
 function filterByTimePreference(slots, preference) {
-  if (!preference || preference === 'any') return slots;
-  const pref = String(preference).toLowerCase();
+  const pref = normalizeTimePreference(preference);
+  if (pref === 'any') return slots;
   return slots.filter((slot) => {
     const [h, m] = String(slot.time || '').split(':').map(Number);
     if (!(Number.isFinite(h) && Number.isFinite(m))) return false;
@@ -55,15 +60,27 @@ exports.handler = async (event) => {
   if (method !== 'POST' && method !== 'GET') {
     return json(405, { success: false, message: 'Method Not Allowed' });
   }
-  if (!isAuthorized(event)) {
+  if (!isAuthorizedToolRequest(event)) {
     return json(401, { success: false, message: 'Unauthorized tool call' });
   }
 
   const raw = readBody(event) || {};
   const input = parseInput(raw);
 
-  const apiKey = String(envValue('CALCOM_API_KEY') || '').trim();
-  const eventTypeId = String(envValue('CALCOM_EVENT_TYPE_ID') || '').trim();
+  const tenantContext = await resolveTenantFromToolBody(input);
+  const tenant = tenantContext.tenant;
+  const settings = await getTenantSettings(tenant && tenant.id, { serviceRole: true });
+  const calendar = selectCalendarConfig({
+    tenant,
+    settings,
+    globalApiKey: envValue('CALCOM_API_KEY'),
+    globalEventTypeId: envValue('CALCOM_EVENT_TYPE_ID'),
+  });
+  if (!calendar.bookingEnabled) {
+    return json(403, { success: false, status: 'booking_disabled', message: 'Terminbuchung ist fuer diesen Kunden nicht aktiviert.' });
+  }
+  const apiKey = calendar.apiKey;
+  const eventTypeId = calendar.eventTypeId;
   if (!apiKey || !eventTypeId) {
     return json(500, { success: false, message: 'Cal.com ist nicht vollstaendig konfiguriert.' });
   }
@@ -109,3 +126,5 @@ exports.handler = async (event) => {
 
   return json(200, { success: true, slots });
 };
+
+exports.__test = { filterByTimePreference, normalizeTimePreference };

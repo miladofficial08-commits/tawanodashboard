@@ -1,7 +1,9 @@
 const assert = require('node:assert/strict');
 
 const calcom = require('../netlify/functions/_lib/calcom');
+const calendarConfig = require('../netlify/functions/_lib/calendar-config');
 const { __test } = require('../netlify/functions/book-appointment');
+const slotsTest = require('../netlify/functions/get-available-slots').__test;
 
 // --- Zeit-/Slot-Logik ----------------------------------------------------
 
@@ -146,6 +148,60 @@ function testTavanoGate() {
   assert.equal(__test.isTavanoContext({ id: 'tenant_beautyworld', name: 'Beautyworld' }, '+49123456'), false);
 }
 
+function testTenantCalendarOverridesGlobalFallback() {
+  const result = calendarConfig.selectCalendarConfig({
+    tenant: { id: 'tenant_tawano', name: 'Tawano' },
+    settings: { booking_enabled: true, calcom_api_key: 'tenant-key', calcom_event_type_id: 'tenant-event' },
+    globalApiKey: 'global-key',
+    globalEventTypeId: 'global-event',
+  });
+  assert.equal(result.apiKey, 'tenant-key');
+  assert.equal(result.eventTypeId, 'tenant-event');
+  assert.equal(result.bookingEnabled, true);
+}
+
+function testOtherTenantCannotBorrowGlobalCalendar() {
+  const result = calendarConfig.selectCalendarConfig({
+    tenant: { id: 'tenant_other', name: 'Other Customer' },
+    settings: { booking_enabled: true },
+    globalApiKey: 'tawano-global-key',
+    globalEventTypeId: 'tawano-global-event',
+  });
+  assert.equal(result.apiKey, '');
+  assert.equal(result.eventTypeId, '');
+}
+
+function testBookingMustBeExplicitlyEnabled() {
+  const result = calendarConfig.selectCalendarConfig({
+    tenant: { id: 'tenant_tawano', name: 'Tawano' },
+    settings: { booking_enabled: false },
+    globalApiKey: 'global-key',
+    globalEventTypeId: 'global-event',
+  });
+  assert.equal(result.bookingEnabled, false);
+}
+
+function testGermanTimePreferencesAreNormalized() {
+  assert.equal(slotsTest.normalizeTimePreference('vormittags'), 'morning');
+  assert.equal(slotsTest.normalizeTimePreference('nachmittags'), 'afternoon');
+  assert.equal(slotsTest.normalizeTimePreference('abends'), 'evening');
+  assert.equal(slotsTest.normalizeTimePreference('egal'), 'any');
+}
+
+function testFullRetellPayloadProvidesCallIdentity() {
+  const input = __test.normalizeToolInput({
+    call: {
+      call_id: 'call_1',
+      direction: 'inbound',
+      from_number: '+491631283971',
+      to_number: '+4921186943411',
+    },
+    args: { date: '2026-07-15', time: '14:00', customer_name: 'Test' },
+  });
+  assert.equal(input.call_id, 'call_1');
+  assert.equal(input.phone_number, '+491631283971');
+}
+
 function run() {
   testBerlinWallClockToUtcSummer();
   testBerlinWallClockToUtcWinter();
@@ -162,6 +218,11 @@ function run() {
   testPickSlotsSkipsPastAndOutOfWindow();
   testAppointmentTemplateHasPlaceholders();
   testTavanoGate();
+  testTenantCalendarOverridesGlobalFallback();
+  testOtherTenantCannotBorrowGlobalCalendar();
+  testBookingMustBeExplicitlyEnabled();
+  testGermanTimePreferencesAreNormalized();
+  testFullRetellPayloadProvidesCallIdentity();
   console.log('tavano-booking.test.js: all assertions passed');
 }
 

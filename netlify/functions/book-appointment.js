@@ -6,6 +6,8 @@ const {
 } = require('./_lib/tenant');
 const { deliverSms } = require('./_lib/sms');
 const calcom = require('./_lib/calcom');
+const { isAuthorizedToolRequest } = require('./_lib/retell-auth');
+const { selectCalendarConfig } = require('./_lib/calendar-config');
 
 const DEFAULT_TIMEZONE = 'Europe/Berlin';
 const DEFAULT_SMS_FROM = 'Tawano';
@@ -16,14 +18,6 @@ function isRealPhone(value) {
   const s = String(value || '').trim();
   if (!s || /[<>{}]/.test(s)) return false;
   return s.replace(/\D/g, '').length >= 7;
-}
-
-function isAuthorized(event) {
-  const expected = envValue('RETELL_TOOL_SECRET').trim();
-  if (!expected) return true;
-  const headers = event.headers || {};
-  const incoming = String(headers['x-retell-tool-secret'] || headers['X-Retell-Tool-Secret'] || '').trim();
-  return incoming && incoming === expected;
 }
 
 // Robust Input-Parsing: args, arguments, oder direktes body
@@ -107,7 +101,7 @@ exports.handler = async (event) => {
   if ((event.httpMethod || 'GET').toUpperCase() !== 'POST') {
     return json(405, { success: false, message: 'Method Not Allowed' });
   }
-  if (!isAuthorized(event)) {
+  if (!isAuthorizedToolRequest(event)) {
     return json(401, { success: false, message: 'Unauthorized tool call' });
   }
 
@@ -171,13 +165,18 @@ exports.handler = async (event) => {
 
   // Terminbuchung wird ueber das Admin-Terminal gesteuert (settings.booking_enabled).
   // Rueckfall: der alte Tawano-Kontext bleibt aktiv, solange der Schalter noch nicht gesetzt ist.
-  const bookingEnabled = tSettings.booking_enabled === true || isTavanoContext(tenant, calledNumber);
-  if (!bookingEnabled) {
+  const calendar = selectCalendarConfig({
+    tenant,
+    settings: tSettings,
+    globalApiKey: envValue('CALCOM_API_KEY'),
+    globalEventTypeId: envValue('CALCOM_EVENT_TYPE_ID'),
+  });
+  if (!calendar.bookingEnabled) {
     return json(403, { success: false, message: 'Terminbuchung ist fuer diesen Kunden nicht aktiviert.' });
   }
 
-  const apiKey = String(tSettings.calcom_api_key || envValue('CALCOM_API_KEY') || '').trim();
-  const eventTypeId = String(tSettings.calcom_event_type_id || envValue('CALCOM_EVENT_TYPE_ID') || '').trim();
+  const apiKey = calendar.apiKey;
+  const eventTypeId = calendar.eventTypeId;
   if (!apiKey || !eventTypeId) {
     return json(500, { success: false, message: 'Cal.com nicht konfiguriert.' });
   }
