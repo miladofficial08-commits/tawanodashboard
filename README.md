@@ -69,11 +69,43 @@ Expected JSON body for `create_callback_request`:
 
 Environment variables used by these endpoints:
 
-- `RETELL_TOOL_SECRET` (optional security header `x-retell-tool-secret`)
+- `RETELL_TOOL_SECRET` (required; `RETELL_WEBHOOK_SECRET` is accepted as a migration alias)
 - `BOOKING_LINK_URL` (default booking link)
 - `SEVEN_API_KEY` + `SMS_FROM` (direct SMS via seven.io, preferred)
 - `SMS_WEBHOOK_URL` (optional fallback where SMS automation runs)
 - `CALLBACK_WEBHOOK_URL` (where callback task automation runs)
+
+### Required Retell custom-function configuration
+
+Configure every write/read tool below as a Retell Custom Function and add the same static request header:
+
+```text
+x-retell-tool-secret: <the value stored as RETELL_TOOL_SECRET in Netlify>
+```
+
+Use these production URLs and methods:
+
+- `get_available_slots`: `POST https://tawanodashboard.netlify.app/api/get-available-slots`
+- `book_appointment`: `POST https://tawanodashboard.netlify.app/api/book-appointment`
+- `send_confirmation_sms`: `POST https://tawanodashboard.netlify.app/api/send-confirmation-sms`
+- `create_callback_request`: `POST https://tawanodashboard.netlify.app/api/callback`
+
+Keep Retell's `Payload: args only` disabled so the backend receives `name`, `call`, and `args`. The handlers accept both forms during migration, but the full payload provides the trusted call ID, agent ID, caller number, and called business number needed for tenant resolution. Retell documents both custom request headers and the full custom-function payload in its Custom Function guide.
+
+The inbound-call webhook is separate and remains:
+
+```text
+POST https://tawanodashboard.netlify.app/api/retell-inbound
+```
+
+It must be configured on the Tawano phone number as the Inbound Call Webhook URL so `current_date`, `caller_number`, and tenant metadata are available before the agent starts.
+
+### Cal.com tenant rules
+
+- Set `booking_enabled`, `calcom_event_type_id`, and `calcom_api_key` per tenant in `/admin`.
+- Global `CALCOM_API_KEY` and `CALCOM_EVENT_TYPE_ID` are migration fallbacks for Tawano only.
+- Other tenants never inherit the global Tawano calendar.
+- Availability and booking now resolve the same tenant settings.
 
 ## Multi-tenant production model
 

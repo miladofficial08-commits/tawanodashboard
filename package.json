@@ -4,7 +4,9 @@
   "private": true,
   "description": "Tawano Customer Dashboard (frontend + Netlify functions)",
   "scripts": {
-    "dev": "netlify dev"
+    "dev": "netlify dev",
+    "test": "node tests/retell-tool-auth.test.js && node tests/tavano-booking.test.js && node tests/tavano-sms-flow.test.js && node tests/retell-call-ended.test.js && node tests/retell-prompt-payload.test.js && node tests/tavano-lead.test.js && node tests/tavano-page.test.js",
+    "build": "netlify build"
   },
   "devDependencies": {
     "netlify-cli": "^17"

@@ -1,21 +1,22 @@
 const { envValue, insertRow, json, readBody, resolveTenantFromToolBody, getTenantSettings, saveTenantSettings, listRows } = require('./_lib/tenant');
+const { isAuthorizedToolRequest } = require('./_lib/retell-auth');
 
 // Sicherheitsnetz: wurde fuer diesen Anruf bereits ein Termin gebucht (book-appointment),
 // dann ging schon die Call-Details-SMS raus -> die Standard-SMS NICHT zusaetzlich senden.
 // Best-effort: schlaegt die Abfrage fehl (z. B. Tabelle fehlt), laeuft der Versand normal weiter.
-async function recentBookingExists({ callId, phone }) {
+async function recentBookingExists({ tenantId, callId, phone }) {
   const sinceIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const digits = String(phone || '').replace(/\D/g, '');
   try {
     if (callId) {
       const byCall = await listRows('tavano_bookings', {
-        select: 'id', call_id: 'eq.' + callId, status: 'eq.booked', limit: 1,
+        select: 'id', tenant_id: 'eq.' + tenantId, call_id: 'eq.' + callId, status: 'eq.booked', limit: 1,
       }, { serviceRole: true });
       if (byCall.length) return true;
     }
     if (digits) {
       const rows = await listRows('tavano_bookings', {
-        select: 'phone_number', status: 'eq.booked', created_at: 'gte.' + sinceIso, limit: 50,
+        select: 'phone_number', tenant_id: 'eq.' + tenantId, status: 'eq.booked', created_at: 'gte.' + sinceIso, limit: 50,
       }, { serviceRole: true });
       return rows.some((r) => String(r.phone_number || '').replace(/\D/g, '') === digits);
     }
@@ -62,14 +63,6 @@ function appendQueryParams(url, params) {
     if (!query) return base;
     return base + (base.includes('?') ? '&' : '?') + query;
   }
-}
-
-function isAuthorized(event) {
-  const expected = envValue('RETELL_TOOL_SECRET').trim();
-  if (!expected) return true;
-  const headers = event.headers || {};
-  const incoming = String(headers['x-retell-tool-secret'] || headers['X-Retell-Tool-Secret'] || '').trim();
-  return incoming && incoming === expected;
 }
 
 async function sendViaWebhook(payload) {
@@ -163,7 +156,7 @@ exports.handler = async (event) => {
   if ((event.httpMethod || 'GET').toUpperCase() !== 'POST') {
     return json(405, { ok: false, message: 'Method Not Allowed' });
   }
-  if (!isAuthorized(event)) {
+  if (!isAuthorizedToolRequest(event)) {
     return json(401, { ok: false, message: 'Unauthorized tool call' });
   }
 
@@ -221,8 +214,22 @@ exports.handler = async (event) => {
 
   // Wurde fuer diesen Anruf bereits ein Termin gebucht? Dann ging die Call-Details-SMS
   // schon raus -> die Standard-SMS wird unterdrueckt.
-  if (await recentBookingExists({ callId: String(body.call_id || '').trim(), phone })) {
+  if (await recentBookingExists({ tenantId: String(tenant && tenant.id || '').trim(), callId: String(body.call_id || '').trim(), phone })) {
     return json(200, { ok: true, status: 'skipped_booking_sms_sent', message: 'Termin gebucht – Standard-SMS unterdrueckt.', to: phone });
+  }
+
+  const callId = String(body.call_id || '').trim();
+  if (callId) {
+    try {
+      const existingSms = await listRows('sms_logs', {
+        select: 'id,status,provider_message_id', tenant_id: 'eq.' + tenant.id,
+        call_id: 'eq.' + callId, phone_number: 'eq.' + phone,
+        status: 'in.(ACCEPTED,DELIVERED)', limit: 1,
+      }, { serviceRole: true });
+      if (existingSms.length) {
+        return json(200, { ok: true, status: 'duplicate_suppressed', message: 'SMS fuer diesen Anruf bereits versendet.', to: phone });
+      }
+    } catch (_) { /* Altschema ohne call_id: Versandpfad beibehalten. */ }
   }
 
   const calledNumber = String(
@@ -369,4 +376,5 @@ exports.handler = async (event) => {
 
 exports.__test = {
   appendQueryParams,
+  recentBookingExists,
 };

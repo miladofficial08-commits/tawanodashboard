@@ -2,7 +2,7 @@
 // Wird von neuen Functions genutzt (z. B. book-appointment). Die bestehende
 // send-booking-link.js behaelt ihren eigenen, bereits erprobten Versandpfad.
 
-const { envValue, insertRow, getTenantSettings, saveTenantSettings } = require('./tenant');
+const { envValue, insertRow, listRows, getTenantSettings, saveTenantSettings } = require('./tenant');
 
 const DEFAULT_SMS_FROM = 'Tawano';
 
@@ -67,6 +67,22 @@ async function sendViaSeven({ to, message, smsSender }) {
 
 // Sendet + protokolliert + zaehlt Kosten. Logging/Zaehler duerfen den Versand nie sprengen.
 async function deliverSms(payload) {
+  if (payload.tenant_id && payload.call_id) {
+    try {
+      const existing = await listRows('sms_logs', {
+        select: 'id,status,provider_message_id',
+        tenant_id: 'eq.' + payload.tenant_id,
+        call_id: 'eq.' + payload.call_id,
+        phone_number: 'eq.' + payload.to,
+        status: 'in.(ACCEPTED,DELIVERED)',
+        limit: 1,
+      }, { serviceRole: true });
+      if (existing.length) {
+        return { sent: true, duplicateSuppressed: true, provider: 'existing', message: 'SMS fuer diesen Anruf bereits versendet' };
+      }
+    } catch (_) { /* Altschema ohne call_id: Versandpfad beibehalten. */ }
+  }
+
   const result = await sendViaSeven({
     to: payload.to,
     message: payload.message,

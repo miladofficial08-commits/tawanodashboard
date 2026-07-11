@@ -1360,6 +1360,27 @@ function setView(name) {
   });
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.getAttribute('data-view') === name));
   window.scrollTo(0, 0);
+  if (name === 'feedback') loadFeedback();
+}
+
+async function loadFeedback() {
+  const el = document.getElementById('feedback-body');
+  if (!el || !authToken) return;
+  el.innerHTML = '<div class="empty">Feedback wird geladen...</div>';
+  try {
+    const result = await fetchApi('/api/feedback-list', { cache: 'no-store', headers: authHeaders() });
+    if (!result.res.ok || !result.data.ok) throw new Error(result.data.message || 'Feedback konnte nicht geladen werden');
+    const rows = Array.isArray(result.data.feedback) ? result.data.feedback : [];
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty">Noch keine Bewertungen vorhanden.</div>';
+      return;
+    }
+    const avg = rows.reduce((sum, row) => sum + Number(row.rating || 0), 0) / rows.length;
+    el.innerHTML = '<div class="detail-meta"><div><em>Durchschnitt</em><b>' + avg.toFixed(1).replace('.', ',') + ' / 5</b></div><div><em>Bewertungen</em><b>' + rows.length + '</b></div></div>'
+      + '<div class="call-list">' + rows.map((row) => '<div class="call-row"><div><strong>' + escHtml(String(row.rating) + ' / 5 Sterne') + '</strong><span>' + escHtml(row.phone_number || 'Nummer unbekannt') + '</span></div><time>' + escHtml(fmtTime(row.created_at)) + '</time></div>').join('') + '</div>';
+  } catch (error) {
+    el.innerHTML = '<div class="empty">' + escHtml(error.message) + '</div>';
+  }
 }
 
 let showAllContacts = false;

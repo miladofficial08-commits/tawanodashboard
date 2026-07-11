@@ -1,14 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { insertRow, isMissingSchemaError, json, readBody, resolveTenantFromToolBody, envValue } = require('./_lib/tenant');
-
-function isAuthorized(event) {
-  const expected = envValue('RETELL_TOOL_SECRET').trim();
-  if (!expected) return true;
-  const headers = event.headers || {};
-  const incoming = String(headers['x-retell-tool-secret'] || headers['X-Retell-Tool-Secret'] || '').trim();
-  return incoming && incoming === expected;
-}
+const { isAuthorizedToolRequest } = require('./_lib/retell-auth');
 
 function appendLocalCallback(item) {
   const filePath = path.join(process.cwd(), '.callbacks.json');
@@ -49,7 +42,7 @@ exports.handler = async (event) => {
   if ((event.httpMethod || 'GET').toUpperCase() !== 'POST') {
     return json(405, { ok: false, message: 'Method Not Allowed' });
   }
-  if (!isAuthorized(event)) {
+  if (!isAuthorizedToolRequest(event)) {
     return json(401, { ok: false, message: 'Unauthorized tool call' });
   }
 
