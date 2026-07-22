@@ -1,5 +1,6 @@
 const { envValue, insertRow, json, readBody, resolveTenantFromToolBody, getTenantSettings, saveTenantSettings, listRows } = require('./_lib/tenant');
 const { isAuthorizedToolRequest } = require('./_lib/retell-auth');
+const { sendAlert } = require('./_lib/alert');
 
 // Sicherheitsnetz: wurde fuer diesen Anruf bereits ein Termin gebucht (book-appointment),
 // dann ging schon die Call-Details-SMS raus -> die Standard-SMS NICHT zusaetzlich senden.
@@ -34,7 +35,14 @@ async function recentBookingExists({ tenantId, callId, phone }) {
 //  Ohne Vorlage ODER Absender in Supabase wird bewusst NICHT gesendet (klare Fehlermeldung).
 // ============================================================
 // Feedback-Seite = System-URL (kein Nachrichteninhalt), optional per Env ueberschreibbar.
-const FEEDBACK_BASE_URL = String(process.env.FEEDBACK_BASE_URL || 'https://tawanodashboard.netlify.app/feedback').trim();
+// Wichtig beim Hosting-Wechsel: der Link darf NICHT auf einer festen Domain haengen, sonst
+// verschickt der Agent Links auf einen Server, der gar nicht mehr laeuft.
+const FEEDBACK_BASE_URL = String(
+  process.env.FEEDBACK_BASE_URL
+  || (process.env.PUBLIC_BASE_URL ? String(process.env.PUBLIC_BASE_URL).replace(/\/$/, '') + '/feedback' : '')
+  || (process.env.RAILWAY_PUBLIC_DOMAIN ? 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN + '/feedback' : '')
+  || 'https://tawanodashboard.netlify.app/feedback',
+).trim();
 
 // Prueft, ob ein Wert eine echte Telefonnummer ist – verwirft KI-Platzhalter wie "<EINGEHENDE_NUMMER>".
 function isRealPhone(value) {
@@ -249,12 +257,24 @@ exports.handler = async (event) => {
 
   // Kein hartcodierter Fallback mehr: ohne Vorlage oder Absender wird NICHT gesendet.
   if (!template) {
+    sendAlert({
+      scope: 'SMS-Versand',
+      key: 'sms:no-template:' + tenant.id,
+      message: 'Keine SMS-Vorlage hinterlegt - Kunde bekommt keinen Buchungslink',
+      context: { kunde: tenant.id, anrufer: phone, behebung: 'sms_template in tenant_settings setzen' },
+    });
     return json(400, {
       ok: false, status: 'no_template', tenant: tenant.id, to: phone,
       message: 'Keine SMS-Vorlage in Supabase fuer Tenant "' + tenant.id + '". Bitte sms_template (tenant_settings) im Admin/Supabase setzen.',
     });
   }
   if (!smsSender) {
+    sendAlert({
+      scope: 'SMS-Versand',
+      key: 'sms:no-sender:' + tenant.id,
+      message: 'Kein SMS-Absender hinterlegt - Kunde bekommt keinen Buchungslink',
+      context: { kunde: tenant.id, anrufer: phone, behebung: 'tenants.sms_sender setzen' },
+    });
     return json(400, {
       ok: false, status: 'no_sender', tenant: tenant.id, to: phone,
       message: 'Kein Absender in Supabase fuer Tenant "' + tenant.id + '". Bitte tenants.sms_sender setzen.',
@@ -348,6 +368,17 @@ exports.handler = async (event) => {
     // Die echte Zustellung (DELIVERED) trifft spaeter per DLR-Webhook (/api/sms-dlr) ein.
     const providerMessageId = (result.response && Array.isArray(result.response.messages)
       && result.response.messages[0] && result.response.messages[0].id) || null;
+
+    // Der Provider hat die SMS abgelehnt - der Anrufer wartet vergeblich auf den Link.
+    if (!result.sent) {
+      sendAlert({
+        scope: 'SMS-Versand',
+        key: 'sms:provider-rejected',
+        message: 'seven.io hat die SMS abgelehnt',
+        detail: result.message,
+        context: { kunde: tenant.id, anrufer: phone, anruf: body.call_id, provider_code: result.responseCode },
+      });
+    }
     return json(result.sent ? 200 : 502, {
       ok: result.sent,
       status: result.sent ? 'accepted' : 'failed',
@@ -364,6 +395,13 @@ exports.handler = async (event) => {
       message,
     });
   } catch (error) {
+    sendAlert({
+      scope: 'SMS-Versand',
+      key: 'sms:exception',
+      message: 'SMS-Versand komplett fehlgeschlagen (Provider nicht erreichbar?)',
+      detail: String((error && error.stack) || error),
+      context: { kunde: tenant.id, anrufer: phone, anruf: body.call_id },
+    });
     return json(502, {
       ok: false,
       message: 'SMS konnte nicht ausgeloest werden',

@@ -1,0 +1,13 @@
+# Secrets gehoeren NIE ins Deployment-Tarball - sie werden in Railway als
+# Environment-Variablen gesetzt. envValue() liest process.env zuerst, damit
+# funktioniert der Server auf Railway ohne .env-Datei.
+.env
+.env.local
+
+node_modules
+.netlify
+.git
+tests
+docs
+scripts
+.agents

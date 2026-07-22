@@ -18,7 +18,14 @@ function checkAdmin(event, body) {
   return Boolean(adminSecret) && provided === adminSecret;
 }
 
-const FEEDBACK_BASE_URL = 'https://tawanodashboard.netlify.app/feedback';
+// Nicht fest verdrahten: sonst zeigt der Feedback-Link nach einem Hosting-Wechsel
+// auf einen Server, der nicht mehr laeuft.
+const FEEDBACK_BASE_URL = String(
+  process.env.FEEDBACK_BASE_URL
+  || (process.env.PUBLIC_BASE_URL ? String(process.env.PUBLIC_BASE_URL).replace(/\/$/, '') + '/feedback' : '')
+  || (process.env.RAILWAY_PUBLIC_DOMAIN ? 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN + '/feedback' : '')
+  || 'https://tawanodashboard.netlify.app/feedback',
+).trim();
 
 async function sendViaSeven(to, messageText, smsSender) {
   const apiKey = envValue('SEVEN_API_KEY').trim();

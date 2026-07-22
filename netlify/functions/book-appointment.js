@@ -8,6 +8,7 @@ const { deliverSms } = require('./_lib/sms');
 const calcom = require('./_lib/calcom');
 const { isAuthorizedToolRequest } = require('./_lib/retell-auth');
 const { selectCalendarConfig } = require('./_lib/calendar-config');
+const { sendAlert } = require('./_lib/alert');
 
 const DEFAULT_TIMEZONE = 'Europe/Berlin';
 const DEFAULT_SMS_FROM = 'Tawano';
@@ -178,6 +179,12 @@ exports.handler = async (event) => {
   const apiKey = calendar.apiKey;
   const eventTypeId = calendar.eventTypeId;
   if (!apiKey || !eventTypeId) {
+    sendAlert({
+      scope: 'Terminbuchung',
+      key: 'booking:calcom-unconfigured:' + String((tenant && tenant.id) || '?'),
+      message: 'Cal.com ist nicht konfiguriert - es kann kein Termin gebucht werden',
+      context: { kunde: (tenant && tenant.id), behebung: 'CALCOM_API_KEY und CALCOM_EVENT_TYPE_ID pruefen' },
+    });
     return json(500, { success: false, message: 'Cal.com nicht konfiguriert.' });
   }
 
@@ -210,6 +217,13 @@ exports.handler = async (event) => {
       },
     });
   } catch (error) {
+    sendAlert({
+      scope: 'Terminbuchung',
+      key: 'booking:calcom-error',
+      message: 'Cal.com nicht erreichbar - Termin konnte im laufenden Anruf nicht gebucht werden',
+      detail: String((error && error.stack) || error),
+      context: { kunde: (tenant && tenant.id), anrufer: phone, wunschtermin: startISO },
+    });
     return json(502, {
       success: false,
       status: 'calcom_error',

@@ -515,9 +515,12 @@ function valueForCall(call) {
 }
 
 function defaultServerUrl() {
-  const host = location.hostname || '';
-  if (host === 'localhost' || host === '127.0.0.1') return location.origin;
-  if (host.includes('netlify.app')) return location.origin;
+  // Das Dashboard wird IMMER vom selben Server ausgeliefert, der auch die API bereitstellt
+  // (Netlify, Railway, lokal) -> die eigene Herkunft ist die richtige API-Basis.
+  // Vorher war hier eine Netlify-Domain fest verdrahtet: auf jedem anderen Host (z. B. Railway)
+  // gingen dadurch ALLE API-Aufrufe an Netlify statt an den eigenen Server -> "Offline".
+  if (location.protocol === 'http:' || location.protocol === 'https:') return location.origin;
+  // Nur beim Oeffnen als lokale Datei (file://) gibt es keine brauchbare Herkunft.
   return LIVE_SERVER_URL;
 }
 function detailSummarySource(call) {
@@ -857,10 +860,12 @@ function showDashboard() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('dashboard-screen').classList.remove('hidden');
   document.getElementById('user-email').textContent = currentUser && currentUser.email ? currentUser.email : '';
+  syncRefreshTimer();
 }
 function showLogin() {
   document.getElementById('dashboard-screen').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
+  syncRefreshTimer();
 }
 
 function isAgentCall(call) {
@@ -1670,8 +1675,28 @@ if (authToken) {
 } else {
   showLogin();
 }
-if (timer) clearInterval(timer);
-timer = setInterval(refreshCalls, 15000);
+
+// Auto-Refresh laeuft NUR, wenn eingeloggt UND der Tab sichtbar ist.
+// Vorher lief der Timer dauerhaft weiter (auch im Hintergrund-Tab und ohne Login)
+// und hat das Netlify-Function-Kontingent aufgebraucht -> Site ging mit 503
+// "usage_exceeded" offline und die SMS-Tools im Anruf schlugen fehl.
+function syncRefreshTimer() {
+  const shouldRun = Boolean(authToken) && !document.hidden;
+  if (shouldRun && !timer) {
+    timer = setInterval(refreshCalls, 15000);
+  } else if (!shouldRun && timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  // Beim Zurueckkehren sofort aktualisieren, damit sich nichts "eingefroren" anfuehlt.
+  if (!document.hidden && authToken) refreshCalls();
+  syncRefreshTimer();
+});
+
+syncRefreshTimer();
 </script>
 </body>
 </html>
