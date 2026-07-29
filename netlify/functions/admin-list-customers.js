@@ -1,4 +1,5 @@
-const { envValue, listRows, json, readBody, getTenantSettings } = require('./_lib/tenant');
+const { envValue, listRows, json, readBody, getTenantSettings, tenantProvider } = require('./_lib/tenant');
+const elevenlabs = require('./_lib/elevenlabs');
 // Gleicher Fallback wie beim echten Termin-SMS-Versand -> Admin zeigt IMMER den Text, der wirklich gesendet wird.
 const DEFAULT_APPOINTMENT_SMS_TEMPLATE = require('./book-appointment').__test.DEFAULT_APPOINTMENT_SMS_TEMPLATE;
 
@@ -65,8 +66,13 @@ exports.handler = async (event) => {
 
   const apiKey = envValue('RETELL_API_KEY').trim();
   const withStats = await Promise.all((tenants || []).map(async (t) => {
+    const provider = tenantProvider(t);
+    // ElevenLabs-Kunden: Statistik aus ElevenLabs (nur Lesen). Sonst wie bisher aus Retell.
+    const statsPromise = provider === 'elevenlabs'
+      ? elevenlabs.agentStats(t.elevenlabs_agent_id)
+      : retellStats(t.retell_agent_id, apiKey);
     const [stats, settings] = await Promise.all([
-      retellStats(t.retell_agent_id, apiKey),
+      statsPromise,
       getTenantSettings(t.id, { serviceRole: true }),
     ]);
     // Tatsaechlich aktive SMS-Nachricht = ausschliesslich die in Supabase gespeicherte Vorlage.
@@ -86,7 +92,9 @@ exports.handler = async (event) => {
       name: t.name,
       slug: t.slug,
       is_active: t.is_active,
+      provider: provider,
       retell_agent_id: t.retell_agent_id || '',
+      elevenlabs_agent_id: t.elevenlabs_agent_id || '',
       retell_from_number: t.retell_from_number || '',
       booking_link_url: t.booking_link_url || '',
       sms_sender: t.sms_sender || '',

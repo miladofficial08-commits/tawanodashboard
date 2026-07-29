@@ -26,6 +26,8 @@ exports.handler = async (event) => {
   const password = String(body.password || '');
   const name = String(body.name || '').trim();
   const agentId = String(body.agent_id || body.agentId || '').trim();
+  const providerRaw = String(body.provider || 'retell').trim().toLowerCase();
+  const provider = providerRaw === 'elevenlabs' ? 'elevenlabs' : 'retell';
   const fromNumber = String(body.from_number || body.phone_number || '').trim();
   const bookingLink = String(body.booking_link || '').trim();
   if (!email || !password || !name || !agentId) {
@@ -68,8 +70,11 @@ exports.handler = async (event) => {
       slug: slug,
       name: name,
       is_active: true,
-      retell_agent_id: agentId,
-      retell_agent_alias: 'beautyworlds-demo',
+      provider: provider,
+      // Agent-ID landet je nach Provider in der passenden Spalte, die andere bleibt leer.
+      retell_agent_id: provider === 'retell' ? agentId : null,
+      elevenlabs_agent_id: provider === 'elevenlabs' ? agentId : null,
+      retell_agent_alias: provider === 'retell' ? 'beautyworlds-demo' : null,
       retell_from_number: fromNumber || null,
       booking_link_url: bookingLink || null,
     }, { serviceRole: true });
@@ -94,6 +99,7 @@ exports.handler = async (event) => {
     message: 'Kunde angelegt. Er kann sich jetzt mit E-Mail und Passwort einloggen.',
     email: email,
     tenant_id: tenantId,
+    provider: provider,
     agent_id: agentId,
   });
 };

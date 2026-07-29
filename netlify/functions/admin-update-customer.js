@@ -17,7 +17,11 @@ exports.handler = async (event) => {
   // 1) Echte Tenant-Spalten (Name, Agent, Nummer, Buchungslink, SMS-Absender) direkt aktualisieren.
   const patch = {};
   if (body.name !== undefined) patch.name = String(body.name).trim();
+  if (body.provider !== undefined) {
+    patch.provider = String(body.provider).trim().toLowerCase() === 'elevenlabs' ? 'elevenlabs' : 'retell';
+  }
   if (body.retell_agent_id !== undefined) patch.retell_agent_id = String(body.retell_agent_id).trim() || null;
+  if (body.elevenlabs_agent_id !== undefined) patch.elevenlabs_agent_id = String(body.elevenlabs_agent_id).trim() || null;
   if (body.retell_from_number !== undefined) patch.retell_from_number = String(body.retell_from_number).trim() || null;
   if (body.booking_link_url !== undefined) patch.booking_link_url = String(body.booking_link_url).trim() || null;
   if (body.sms_sender !== undefined) patch.sms_sender = String(body.sms_sender).trim() || null;

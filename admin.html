@@ -120,7 +120,8 @@ details.det .inner{padding:4px 0 12px}
         <div class="field"><label>Firmenname</label><input id="c-name" placeholder="Beauty World Duesseldorf"></div>
         <div class="field"><label>Login E-Mail</label><input id="c-email" type="email" placeholder="kunde@example.de" autocomplete="off"></div>
         <div class="field"><label>Passwort (min. 8)</label><input id="c-password" placeholder="Passwort" autocomplete="off"></div>
-        <div class="field"><label>Voice Agent ID</label><input id="c-agent" placeholder="agent_xxxxx"></div>
+        <div class="field"><label>Voice-Provider</label><select id="c-provider"><option value="retell">Retell</option><option value="elevenlabs">ElevenLabs</option></select></div>
+        <div class="field"><label>Voice Agent ID</label><input id="c-agent" placeholder="agent_xxxxx (Retell oder ElevenLabs)"></div>
         <div class="field"><label>Telefonnummer</label><input id="c-phone" placeholder="+49..."></div>
         <div class="field"><label>Buchungslink</label><input id="c-booking" placeholder="https://..."></div>
       </div>
@@ -223,10 +224,13 @@ function renderCustomer(c) {
   const smsOn=c.sms_enabled!==false;
   const daOn=c.detailed_analysis===true;
   const bookOn=c.booking_enabled===true;
+  const provider=c.provider==='elevenlabs'?'elevenlabs':'retell';
+  const providerLabel=provider==='elevenlabs'?'ElevenLabs':'Retell';
+  const activeAgent=provider==='elevenlabs'?(c.elevenlabs_agent_id||''):(c.retell_agent_id||'');
   return '<div class="cust" data-id="'+esc(c.id)+'">'
     + '<div class="cust-top">'
       + '<div class="cust-id"><div class="avatar">'+esc(initials(c.name))+'</div>'
-        + '<div><strong>'+esc(c.name)+'</strong><span>'+esc(c.retell_agent_id||'kein Agent')+(c.retell_from_number?' · '+esc(c.retell_from_number):'')+'</span></div></div>'
+        + '<div><strong>'+esc(c.name)+'</strong><span>'+esc(providerLabel)+' · '+esc(activeAgent||'kein Agent')+(c.retell_from_number?' · '+esc(c.retell_from_number):'')+'</span></div></div>'
       + '<div class="cust-metrics"><div><b>'+(st.calls||0)+'</b><span>Anrufe</span></div><div><b style="font-size:14px;color:#48607d">'+esc(fmt(st.lastAt))+'</b><span>zuletzt</span></div></div>'
     + '</div>'
     + '<div class="toggles">'
@@ -237,8 +241,11 @@ function renderCustomer(c) {
     + '</div>'
     + '<div class="field" style="margin-bottom:12px"><label>Minuten-Budget (nur wenn Live-Minuten an)</label><input class="f-minutes" type="number" value="'+esc(minOn?c.minutes_budget:'')+'" placeholder="z. B. 200"></div>'
     + '<details class="det"><summary>Einstellungen & SMS-Nachricht bearbeiten</summary><div class="inner">'
-      + '<div class="grid2"><div class="field"><label>Voice Agent ID</label><input class="f-agent" value="'+esc(c.retell_agent_id)+'"></div>'
-      + '<div class="field"><label>Telefonnummer</label><input class="f-phone" value="'+esc(c.retell_from_number)+'"></div></div>'
+      + '<div class="grid2"><div class="field"><label>Voice-Provider</label><select class="f-provider">'
+        + '<option value="retell"'+(provider==='retell'?' selected':'')+'>Retell</option>'
+        + '<option value="elevenlabs"'+(provider==='elevenlabs'?' selected':'')+'>ElevenLabs</option></select></div>'
+      + '<div class="field"><label>Voice Agent ID ('+esc(providerLabel)+')</label><input class="f-agent" value="'+esc(activeAgent)+'"></div></div>'
+      + '<div class="field"><label>Telefonnummer</label><input class="f-phone" value="'+esc(c.retell_from_number)+'"></div>'
       + '<div class="field"><label>Buchungslink</label><input class="f-booking" value="'+esc(c.booking_link_url)+'"></div>'
       + '<div class="field"><label>SMS-Absender (Name max. 11 Zeichen <b>oder</b> +49… Nummer für Feedback-Antworten)</label><input class="f-sender" placeholder="z. B. BeautyWorld" value="'+esc(c.sms_sender)+'"></div>'
       + '<div class="field"><label>SMS-Nachricht ({booking_link} = Link, {feedback_link} = Bewertung)</label><textarea class="f-sms">'+esc(c.sms_template)+'</textarea></div>'
@@ -270,11 +277,16 @@ async function saveCustomer(btn) {
     sms_appointment_template: card.querySelector('.f-appt-sms').value,
     calcom_api_key: card.querySelector('.f-calkey').value,
     calcom_event_type_id: card.querySelector('.f-caltype').value,
-    retell_agent_id: card.querySelector('.f-agent').value,
     retell_from_number: card.querySelector('.f-phone').value,
     booking_link_url: card.querySelector('.f-booking').value,
     sms_sender: card.querySelector('.f-sender').value,
     append_lead_params: card.querySelector('.f-append').checked };
+  // Provider + Agent-ID in die passende Spalte schreiben, die andere leeren.
+  const prov=(card.querySelector('.f-provider')&&card.querySelector('.f-provider').value)||'retell';
+  const agentVal=(card.querySelector('.f-agent').value||'').trim();
+  payload.provider=prov;
+  if(prov==='elevenlabs'){ payload.elevenlabs_agent_id=agentVal; payload.retell_agent_id=''; }
+  else { payload.retell_agent_id=agentVal; payload.elevenlabs_agent_id=''; }
   btn.disabled=true; btn.textContent='Speichert...';
   try { await api('/api/admin/update-customer',payload); msg.className='cmsg ok'; msg.textContent='Gespeichert.'; }
   catch(e){ msg.className='cmsg err'; msg.textContent='Fehler: '+(e.message||e); }
@@ -322,7 +334,7 @@ async function deleteCustomer(btn) {
 async function createCustomer() {
   const m=document.getElementById('create-msg'); m.className='msg'; m.textContent='';
   const v=(id)=>(document.getElementById(id).value||'').trim();
-  const payload={ name:v('c-name'), email:v('c-email'), password:v('c-password'), agent_id:v('c-agent'), from_number:v('c-phone'), booking_link:v('c-booking') };
+  const payload={ name:v('c-name'), email:v('c-email'), password:v('c-password'), provider:v('c-provider')||'retell', agent_id:v('c-agent'), from_number:v('c-phone'), booking_link:v('c-booking') };
   if(!payload.name||!payload.email||!payload.password||!payload.agent_id){ m.className='msg err'; m.textContent='Bitte Firmenname, E-Mail, Passwort und Agent ID ausfuellen.'; return; }
   try {
     await api('/api/admin/create-customer',payload);

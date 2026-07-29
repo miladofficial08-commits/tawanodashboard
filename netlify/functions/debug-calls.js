@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { bearerTokenFromEvent, envValue, json, listRows, resolveTenantContextFromAccessToken, getTenantSettings } = require('./_lib/tenant');
+const { bearerTokenFromEvent, envValue, json, listRows, resolveTenantContextFromAccessToken, getTenantSettings, tenantProvider, tenantAgentId } = require('./_lib/tenant');
+const elevenlabs = require('./_lib/elevenlabs');
 
 function toIsoFromMs(ms) {
   const num = Number(ms || 0);
@@ -116,6 +117,38 @@ exports.handler = async (event) => {
     tenantContext = await resolveTenantContextFromAccessToken(accessToken);
   } catch (error) {
     return json(error.status || 401, { ok: false, message: 'Tenant-Kontext konnte nicht geladen werden', detail: String(error.message || error), calls: [], callbacks: [] });
+  }
+
+  const provider = tenantProvider(tenantContext.tenant);
+
+  // ── ElevenLabs-Kunden: Gespraeche direkt aus ElevenLabs lesen ──────────────
+  // Nur Lesen. Telefonie/Buchung/SMS steuert der Kunde in ElevenLabs selbst.
+  if (provider === 'elevenlabs') {
+    const elAgentId = tenantAgentId(tenantContext.tenant);
+    if (!elAgentId) {
+      return json(200, { ok: true, tenant: tenantContext.tenant, calls: [], callbacks: [], message: 'Kein ElevenLabs-Agent fuer diesen Mandanten hinterlegt.' });
+    }
+    if (!envValue('ELEVENLABS_API_KEY').trim()) {
+      return json(500, { ok: false, message: 'ELEVENLABS_API_KEY fehlt (bitte in Railway/Netlify eintragen).', calls: [], callbacks: [] });
+    }
+    try {
+      const allCalls = await elevenlabs.listConversations(elAgentId, { limit: 120 });
+      const cutoffMs = cutoffMsFromTenant(tenantContext.tenant);
+      const calls = cutoffMs
+        ? allCalls.filter((c) => { const t = Date.parse(c.createdAt); return Number.isFinite(t) && t >= cutoffMs; })
+        : allCalls;
+
+      let callbacks = [];
+      try {
+        callbacks = await listRows('callback_requests', {
+          select: '*', tenant_id: 'eq.' + tenantContext.tenant.id, order: 'created_at.desc', limit: 50,
+        }, { accessToken });
+      } catch (_) { callbacks = []; }
+
+      return json(200, { ok: true, tenant: tenantContext.tenant, calls, callbacks });
+    } catch (error) {
+      return json(502, { ok: false, message: 'ElevenLabs nicht erreichbar.', detail: String(error && error.message ? error.message : error), calls: [] });
+    }
   }
 
   const retellApiKey = envValue('RETELL_API_KEY').trim();

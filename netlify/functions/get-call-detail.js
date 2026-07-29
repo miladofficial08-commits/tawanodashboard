@@ -1,4 +1,5 @@
-const { bearerTokenFromEvent, envValue, json, readBody, resolveTenantContextFromAccessToken } = require('./_lib/tenant');
+const { bearerTokenFromEvent, envValue, json, readBody, resolveTenantContextFromAccessToken, tenantProvider, tenantAgentId } = require('./_lib/tenant');
+const elevenlabs = require('./_lib/elevenlabs');
 
 // Liefert Transkript + Detail-Analyse EINES Anrufs. Streng getrennt: der Anruf
 // muss zum Voice Agent des eingeloggten Kunden gehoeren.
@@ -16,6 +17,24 @@ exports.handler = async (event) => {
   } catch (e) {
     return json(401, { ok: false, message: 'Auth fehlgeschlagen' });
   }
+  // ── ElevenLabs-Kunden: Gespraech direkt aus ElevenLabs holen ───────────────
+  if (tenantProvider(tenantContext.tenant) === 'elevenlabs') {
+    const elAgentId = tenantAgentId(tenantContext.tenant);
+    if (!envValue('ELEVENLABS_API_KEY').trim()) return json(500, { ok: false, message: 'ELEVENLABS_API_KEY fehlt' });
+    let detail;
+    try {
+      detail = await elevenlabs.getConversation(callId);
+    } catch (e) {
+      return json(e && e.status === 404 ? 404 : 502, { ok: false, message: 'Gespraech nicht gefunden' });
+    }
+    if (!detail) return json(404, { ok: false, message: 'Gespraech nicht gefunden' });
+    // Datentrennung: nur eigene Gespraeche.
+    if (elAgentId && String(detail.agent_id || '') !== elAgentId) {
+      return json(403, { ok: false, message: 'Kein Zugriff auf dieses Gespraech.' });
+    }
+    return json(200, { ok: true, call: detail.call });
+  }
+
   const tenantAgent = String((tenantContext.tenant && tenantContext.tenant.retell_agent_id) || '').trim();
 
   const apiKey = envValue('RETELL_API_KEY').trim();

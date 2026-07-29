@@ -221,8 +221,30 @@ async function getTenantById(tenantId, options) {
 }
 
 async function getTenantByAgentId(agentId, options) {
-  const rows = await listRows('tenants', { select: '*', retell_agent_id: 'eq.' + agentId, limit: 1 }, options || {});
+  const id = String(agentId || '').trim();
+  if (!id) return null;
+  // Sowohl Retell- als auch ElevenLabs-Agent-ID matchen (nur ein Provider je Kunde gesetzt).
+  const rows = await listRows('tenants', {
+    select: '*',
+    or: '(retell_agent_id.eq.' + id + ',elevenlabs_agent_id.eq.' + id + ')',
+    limit: 1,
+  }, options || {});
   return rows[0] || null;
+}
+
+// Provider eines Kunden ('retell' | 'elevenlabs'). Fehlt die Spalte (Altbestand
+// vor der Migration) oder ist leer -> 'retell', damit nichts kippt.
+function tenantProvider(tenant) {
+  const p = String((tenant && tenant.provider) || '').trim().toLowerCase();
+  return p === 'elevenlabs' ? 'elevenlabs' : 'retell';
+}
+
+// Die aktive Voice-Agent-ID des Kunden - je nach Provider aus der richtigen Spalte.
+function tenantAgentId(tenant) {
+  if (!tenant) return '';
+  return tenantProvider(tenant) === 'elevenlabs'
+    ? String(tenant.elevenlabs_agent_id || '').trim()
+    : String(tenant.retell_agent_id || '').trim();
 }
 
 function normalizePhone(value) {
@@ -450,6 +472,8 @@ module.exports = {
   getTenantById,
   getTenantByAgentId,
   getTenantByPhoneNumber,
+  tenantProvider,
+  tenantAgentId,
   getTenantSettings,
   saveTenantSettings,
 };
