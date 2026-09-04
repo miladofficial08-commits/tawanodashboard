@@ -131,6 +131,17 @@ exports.handler = async (event) => {
     if (!envValue('ELEVENLABS_API_KEY').trim()) {
       return json(500, { ok: false, message: 'ELEVENLABS_API_KEY fehlt (bitte in Railway/Netlify eintragen).', calls: [], callbacks: [] });
     }
+    // Kunden-Einstellungen (Minuten-Budget, Detail-Analyse) gelten providerunabhaengig -
+    // ohne das hier bliebe die Minuten-Anzeige eines ElevenLabs-Kunden ohne Budget.
+    // serviceRole, weil der Admin die Settings mit serviceRole speichert (RLS).
+    if (tenantContext.tenant && tenantContext.tenant.id) {
+      try {
+        const settings = await getTenantSettings(tenantContext.tenant.id, { serviceRole: true });
+        if (settings && settings.minutes_budget !== undefined) tenantContext.tenant.minutes_budget = Number(settings.minutes_budget) || 0;
+        tenantContext.tenant.detailed_analysis = Boolean(settings && settings.detailed_analysis);
+      } catch (_) { /* Einstellungen optional */ }
+    }
+
     try {
       const allCalls = await elevenlabs.listConversations(elAgentId, { limit: 120 });
       const cutoffMs = cutoffMsFromTenant(tenantContext.tenant);

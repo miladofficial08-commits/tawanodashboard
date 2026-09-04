@@ -49,22 +49,64 @@ function callSuccessfulToBool(value) {
 }
 
 // Telefon-Infos liegen (falls Telefonanruf) im metadata.phone_call-Block.
+// ACHTUNG: ElevenLabs liefert `phone_call: null` fuer Web-/Text-Gespraeche, und
+// `typeof null === 'object'` - ohne die explizite null-Pruefung wird `pc` null und
+// jeder Feldzugriff wirft. Das hat den Detail-Aufruf fuer solche Gespraeche gekillt.
 function phoneInfoFromMeta(meta) {
-  const pc = (meta && typeof meta.phone_call === 'object') ? meta.phone_call : {};
+  const raw = meta && meta.phone_call;
+  const pc = (raw && typeof raw === 'object') ? raw : {};
   const direction = String(pc.direction || '').toLowerCase() || null;
   const external = String(pc.external_number || '').trim() || null; // Nummer des Anrufers/Angerufenen
   const agentNumber = String(pc.agent_number || '').trim() || null;  // eigene Business-Nummer
   return { direction, external, agentNumber };
 }
 
+// ElevenLabs-Beendigungsgrund ist englischer Freitext ("Call was transferred to
+// number"). Das Dashboard uebersetzt aber Retell-Keys (mapDisconnectionReason in
+// Dashboardkunde.html) - bekannte Faelle deshalb auf genau diese Keys ziehen,
+// damit der Kunde "Weiterleitung" statt englischem Rohtext liest.
+function mapTerminationReason(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const s = raw.toLowerCase();
+  if (s.includes('transfer')) return 'call_transfer';
+  if (s.includes('voicemail')) return 'voicemail_reached';
+  if (s.includes('inactiv') || s.includes('timeout') || s.includes('silence')) return 'inactivity';
+  if (s.includes('max duration') || s.includes('max_duration')) return 'max_duration_reached';
+  if (s.includes('busy')) return 'dial_busy';
+  if (s.includes('no answer') || s.includes('unanswered')) return 'dial_no_answer';
+  if (s.includes('agent') && (s.includes('hung') || s.includes('ended') || s.includes('end call'))) return 'agent_hangup';
+  if ((s.includes('user') || s.includes('caller') || s.includes('client')) && (s.includes('hung') || s.includes('ended') || s.includes('disconnect'))) return 'user_hangup';
+  return raw;
+}
+
+// sentiment_analysis.overall_label -> deutsches Anzeigewort (das Dashboard gibt
+// den Wert unveraendert aus).
+function mapSentiment(analysis) {
+  const label = String((analysis && analysis.sentiment_analysis && analysis.sentiment_analysis.overall_label) || '').toLowerCase();
+  if (label === 'positive') return 'Positiv';
+  if (label === 'negative') return 'Negativ';
+  if (label === 'neutral') return 'Neutral';
+  return null;
+}
+
 // Ein Listen-Eintrag -> Dashboard-Call (gleiche Felder wie debug-calls.js mapCall).
+//
+// Die Listen-Antwort von ElevenLabs enthaelt KEINEN metadata-Block (anders als die
+// Detail-Antwort): `direction` steht flach im Item, Rufnummern gibt es hier gar nicht.
+// `transcript_summary` ist in der Liste haeufig null, waehrend `call_summary_title`
+// ("Mitarbeiter weiterleiten") gesetzt ist - ohne diesen Fallback bleibt die
+// Anrufliste im Dashboard leer beschriftet.
 function mapListItem(item) {
   const conversationId = String(item.conversation_id || '');
   const durationMs = Math.max(0, Number(item.call_duration_secs || 0) * 1000);
   const createdAt = unixSecsToIso(item.start_time_unix_secs);
-  const summary = String(item.transcript_summary || '').trim();
+  const summary = String(item.transcript_summary || item.call_summary_title || '').trim();
   const successful = callSuccessfulToBool(item.call_successful);
-  const phone = phoneInfoFromMeta(item.metadata || {});
+  const phone = phoneInfoFromMeta(item.metadata);
+  const direction = phone.direction || (String(item.direction || '').toLowerCase() || null);
+  const reason = mapTerminationReason(item.termination_reason);
+  const sentiment = mapSentiment(item);
   return {
     id: conversationId,
     call_id: conversationId,
@@ -78,15 +120,16 @@ function mapListItem(item) {
     fromNumber: phone.external,
     to_number: phone.agentNumber,
     toNumber: phone.agentNumber,
-    direction: phone.direction,
+    direction,
     phoneNumber: phone.external,
     customerName: '',
     name: '',
-    disconnectionReason: '',
-    disconnection_reason: '',
-    callAnalysis: { call_summary: summary, call_successful: successful },
-    call_analysis: { call_summary: summary, call_successful: successful },
+    disconnectionReason: reason,
+    disconnection_reason: reason,
+    callAnalysis: { call_summary: summary, call_successful: successful, user_sentiment: sentiment },
+    call_analysis: { call_summary: summary, call_successful: successful, user_sentiment: sentiment },
     summary,
+    sentiment,
     createdAt,
     updatedAt: unixSecsToIso(Number(item.start_time_unix_secs || 0) + Number(item.call_duration_secs || 0)),
     provider: 'elevenlabs',
@@ -172,15 +215,16 @@ async function getConversation(conversationId) {
       call_id: c.conversation_id || conversationId,
       transcript: transcriptText,
       transcript_object: transcriptObject,
-      recording_url: null, // ElevenLabs-Audio laeuft ueber einen separaten Endpoint (spaeter nachruestbar).
+      recording_url: null, // ElevenLabs-Audio laeuft ueber einen separaten, key-geschuetzten Endpoint.
+      has_audio: Boolean(c.has_audio),
       from_number: phone.external,
       to_number: phone.agentNumber,
       direction: phone.direction,
       start_timestamp: Number(meta.start_time_unix_secs || 0) * 1000 || null,
       duration_ms: Math.max(0, Number(meta.call_duration_secs || 0) * 1000),
-      disconnection_reason: String(meta.termination_reason || '') || null,
-      summary: String(analysis.transcript_summary || '').trim(),
-      user_sentiment: null,
+      disconnection_reason: mapTerminationReason(meta.termination_reason) || null,
+      summary: String(analysis.transcript_summary || analysis.call_summary_title || '').trim(),
+      user_sentiment: mapSentiment(analysis),
       call_successful: callSuccessfulToBool(analysis.call_successful),
       in_voicemail: false,
     },
