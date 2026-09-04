@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "netlify dev",
-    "test": "node tests/retell-tool-auth.test.js && node tests/tavano-booking.test.js && node tests/tavano-sms-flow.test.js && node tests/retell-call-ended.test.js && node tests/retell-prompt-payload.test.js && node tests/tavano-lead.test.js && node tests/tavano-page.test.js && node tests/alert.test.js && node tests/server-adapter.test.js && node tests/elevenlabs-provider.test.js",
+    "test": "node tests/retell-tool-auth.test.js && node tests/tavano-booking.test.js && node tests/tavano-sms-flow.test.js && node tests/retell-call-ended.test.js && node tests/retell-prompt-payload.test.js && node tests/tavano-lead.test.js && node tests/tavano-page.test.js && node tests/alert.test.js && node tests/server-adapter.test.js && node tests/elevenlabs-provider.test.js && node tests/start-call-isolation.test.js",
     "build": "netlify build"
   },
   "engines": {

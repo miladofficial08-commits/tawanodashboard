@@ -1,4 +1,4 @@
-const { bearerTokenFromEvent, envValue, json, readBody, resolveTenantContextFromAccessToken } = require('./_lib/tenant');
+const { bearerTokenFromEvent, envValue, json, readBody, resolveTenantContextFromAccessToken, tenantProvider } = require('./_lib/tenant');
 
 function toIsoFromMs(ms) {
   const num = Number(ms || 0);
@@ -53,12 +53,29 @@ exports.handler = async (event) => {
     return json(500, { ok: false, message: 'RETELL_API_KEY oder RETELL_FROM_NUMBER fehlt in .env.' });
   }
 
+  // Nur noch fuer die Antwort/Diagnose: was der Browser angefragt hat. Diese ID
+  // steuert NICHTS mehr.
   const requestedAgentId = String(body.agentId || '').trim();
-  let overrideAgentId = '';
-  if (requestedAgentId === 'beautyworlds-demo') {
-    overrideAgentId = String((tenantContext.tenant && tenantContext.tenant.retell_agent_id) || envValue('RETELL_AGENT_BEAUTY') || envValue('RETELL_AGENT_DEFAULT') || '').trim();
-  } else if (requestedAgentId) {
-    overrideAgentId = requestedAgentId;
+
+  // STRIKTE DATENTRENNUNG - gleiche Regel wie in debug-calls.js:
+  // Der Test-Call laeuft IMMER ueber den eigenen Retell-Agent des Mandanten.
+  //
+  // Frueher stand hier ein ENV-Fallback auf RETELL_AGENT_BEAUTY und zusaetzlich
+  // wurde eine vom Browser mitgeschickte agentId ungeprueft uebernommen. Beides
+  // war ein Mandanten-Leck: ein Kunde ohne eigenen retell_agent_id (z. B. jeder
+  // ElevenLabs-Kunde) haette mit dem Agent EINES ANDEREN Kunden telefoniert und
+  // dessen Minuten verbraucht. Die Agent-ID kommt deshalb ausschliesslich aus
+  // dem Tenant, niemals aus dem Request.
+  if (tenantProvider(tenantContext.tenant) === 'elevenlabs') {
+    return json(400, {
+      ok: false,
+      message: 'Dieser Kunde laeuft ueber ElevenLabs. Test-Anrufe werden dort in ElevenLabs gestartet, nicht im Dashboard.',
+    });
+  }
+
+  const overrideAgentId = String((tenantContext.tenant && tenantContext.tenant.retell_agent_id) || '').trim();
+  if (!overrideAgentId) {
+    return json(400, { ok: false, message: 'Fuer diesen Kunden ist kein Retell-Agent hinterlegt.' });
   }
 
   // Aktuelles Datum im ISO-Format für Agent-Prompts
