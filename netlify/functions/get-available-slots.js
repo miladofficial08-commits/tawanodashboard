@@ -33,6 +33,28 @@ function parseDate(dateStr) {
   return !Number.isNaN(d.getTime()) ? d : null;
 }
 
+// Filtert rohe Cal.com-Zeitpunkte vor der Tagesauswahl. So wird pro Tag der
+// frueheste Slot innerhalb der gewuenschten Tageszeit gewaehlt.
+function filterRawSlotsByTimePreference(byDate, preference) {
+  if (!preference || preference === 'any') return byDate;
+  const pref = String(preference).toLowerCase();
+  const result = {};
+  Object.keys(byDate || {}).forEach((day) => {
+    const matches = (byDate[day] || []).filter((date) => {
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: DEFAULT_TIMEZONE, hour12: false, hour: '2-digit', minute: '2-digit',
+      }).formatToParts(date).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+      const mins = Number(parts.hour) * 60 + Number(parts.minute);
+      if (pref === 'morning') return mins >= 7 * 60 && mins < 12 * 60;
+      if (pref === 'afternoon') return mins >= 12 * 60 && mins < 17 * 60;
+      if (pref === 'evening') return mins >= 17 * 60 && mins <= 20 * 60;
+      return false;
+    });
+    if (matches.length) result[day] = matches;
+  });
+  return result;
+}
+
 // Filtert slots nach time_preference (any|morning|afternoon|evening)
 function normalizeTimePreference(value) {
   const key = String(value || '').trim().toLowerCase();
@@ -183,7 +205,7 @@ exports.handler = async (event) => {
   const apiKey = calendar.apiKey;
   const eventTypeId = calendar.eventTypeId;
   if (!apiKey || !eventTypeId) {
-    return json(500, { success: false, message: 'Cal.com ist nicht vollstaendig konfiguriert.' });
+    return json(500, { success: false, message: 'Cal.com ist fuer diesen Kunden nicht vollstaendig konfiguriert.' });
   }
 
   // Input auslesen mit Defaults
