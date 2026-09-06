@@ -152,6 +152,9 @@ for (const [route, file] of Object.entries(STATIC_PAGES)) {
   app.get(route, (_req, res) => res.sendFile(path.join(__dirname, file)));
 }
 
+// Kurzadresse fuer das Beispiel-Dashboard (Vertrieb): /demo statt der langen URL.
+app.get('/demo', (_req, res) => res.redirect(302, '/Dashboardkunde.html?demo=1'));
+
 app.use((_req, res) => res.status(404).send('Nicht gefunden'));
 
 app.listen(PORT, '0.0.0.0', () => {

@@ -1,0 +1,52 @@
+<!--
+  Login-Bereich fuer die Website (tawano.de, Netlify).
+
+  Einfach diesen Block an die gewuenschte Stelle der Seite kopieren - er bringt
+  sein eigenes CSS mit (alle Klassen mit Praefix "tw-login-", damit nichts mit dem
+  bestehenden Stylesheet kollidiert). Er laedt nichts nach und braucht kein JS.
+
+  Die Links zeigen auf das Dashboard unter app.tawano.de. Website und Dashboard
+  bleiben dabei getrennte Projekte - verbunden ist nur der Link.
+-->
+<section class="tw-login-band" id="login">
+  <div class="tw-login-inner">
+    <div class="tw-login-text">
+      <span class="tw-login-eyebrow">FÜR BESTEHENDE KUNDEN</span>
+      <h2>Dein Dashboard.</h2>
+      <p>Alle Anrufe, Rückrufwünsche und Auswertungen deines Betriebs an einem Ort – auf der Baustelle, in der Werkstatt oder unterwegs.</p>
+      <ul class="tw-login-list">
+        <li>Jeder Anruf zusammengefasst auf Deutsch</li>
+        <li>Rückrufplan für Tag und Woche</li>
+        <li>Auswertung und Kundenbewertungen</li>
+      </ul>
+    </div>
+    <div class="tw-login-card">
+      <h3>Einloggen</h3>
+      <p>Mit deiner E-Mail und deinem Passwort. Zugang bekommst du von uns.</p>
+      <a class="tw-login-btn" href="https://app.tawano.de">Zum Dashboard</a>
+      <a class="tw-login-ghost" href="https://app.tawano.de/demo">Beispiel-Dashboard ansehen</a>
+      <p class="tw-login-note">Noch kein Zugang? <a href="mailto:info@tawano.de">Schreib uns</a> – wir richten deinen Assistenten ein.</p>
+    </div>
+  </div>
+</section>
+
+<style>
+.tw-login-band{background:#14342a;color:#f2f7f4;padding:clamp(40px,7vw,84px) clamp(20px,5vw,64px)}
+.tw-login-inner{max-width:1140px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,400px);gap:clamp(24px,5vw,64px);align-items:center}
+.tw-login-eyebrow{display:block;font-size:12px;font-weight:800;letter-spacing:.12em;color:#8fd0b3;margin-bottom:14px}
+.tw-login-text h2{font-size:clamp(30px,5vw,52px);line-height:1.05;letter-spacing:-.5px;margin:0 0 14px;color:#fff}
+.tw-login-text p{font-size:17px;line-height:1.65;color:#c8ddd4;margin:0;max-width:52ch}
+.tw-login-list{list-style:none;padding:0;margin:22px 0 0;display:flex;flex-direction:column;gap:10px}
+.tw-login-list li{position:relative;padding-left:28px;color:#dcebe4;font-weight:600}
+.tw-login-list li::before{content:"✓";position:absolute;left:0;top:-1px;color:#8fd0b3;font-weight:800}
+.tw-login-card{background:#fbfdfc;color:#132238;border-radius:20px;padding:clamp(24px,3vw,32px);box-shadow:0 24px 60px rgba(0,0,0,.28)}
+.tw-login-card h3{margin:0 0 8px;font-size:26px;letter-spacing:-.3px}
+.tw-login-card>p{margin:0 0 20px;color:#64748b;font-size:15px;line-height:1.6}
+.tw-login-btn{display:block;text-align:center;background:#0f8a5f;color:#fff;font-weight:800;text-decoration:none;padding:15px 20px;border-radius:12px;transition:background .15s ease}
+.tw-login-btn:hover{background:#0c7350}
+.tw-login-ghost{display:block;text-align:center;margin-top:10px;padding:13px 20px;border-radius:12px;border:1px solid #dfe7f0;color:#14342a;font-weight:700;text-decoration:none}
+.tw-login-ghost:hover{background:#f1f6f3}
+.tw-login-note{margin:18px 0 0;font-size:13.5px;color:#64748b;text-align:center}
+.tw-login-note a{color:#0f8a5f;font-weight:700}
+@media(max-width:880px){.tw-login-inner{grid-template-columns:1fr}}
+</style>

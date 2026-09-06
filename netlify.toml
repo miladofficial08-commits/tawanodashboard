@@ -123,6 +123,12 @@ status = 200
 force = true
 
 [[redirects]]
+from = "/demo"
+to = "/Dashboardkunde.html?demo=1"
+status = 302
+force = true
+
+[[redirects]]
 from = "/feedback"
 to = "/feedback.html"
 status = 200
