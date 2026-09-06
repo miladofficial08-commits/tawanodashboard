@@ -67,3 +67,26 @@
 .site-link{color:#cfe8dd;text-decoration:none;font-weight:700;font-size:.86rem;padding:6px 10px;border-radius:8px;border:1px solid rgba(207,232,221,.35)}
 .site-link:hover{background:rgba(207,232,221,.12)}
 @media(max-width:760px){.site-link{display:none}}
+
+/* Konto-Menue in der Kopfzeile: ein Knopf statt vier. */
+.account{position:relative}
+.account-btn{display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:#334b67;font:inherit;font-weight:700;cursor:pointer}
+.account-btn:hover{border-color:#c3d3e4;background:#fbfdff}
+.account-initials{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:#14342a;color:#eaf5ef;font-size:12px;font-weight:800;letter-spacing:.02em}
+.account-btn .user-email{padding:0;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-caret{font-size:11px;color:#7b8ca3}
+.account-menu{position:absolute;right:0;top:calc(100% + 8px);min-width:268px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 44px rgba(19,34,56,.18);padding:6px;z-index:30}
+.account-menu.hidden{display:none}
+.account-head{margin:0;padding:10px 12px 12px;border-bottom:1px solid var(--line)}
+.account-head span{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#8394a8}
+.account-head strong{display:block;font-size:.92rem;color:#132238;overflow-wrap:anywhere;margin-top:3px}
+.account-item{display:block;width:100%;text-align:left;padding:11px 12px;margin-top:2px;border:0;border-radius:9px;background:none;color:#213b57;font:inherit;font-weight:700;cursor:pointer;text-decoration:none}
+.account-item:hover{background:#f1f6fb}
+.account-item.danger{color:#b42318}
+.account-item.danger:hover{background:#fff2f0}
+/* Schmales Display: Menue spannt sich unter der Kopfzeile auf, statt links rauszulaufen. */
+@media(max-width:620px){
+  .account-btn .user-email{display:none}
+  .account{position:static}
+  .account-menu{left:12px;right:12px;min-width:0;top:calc(100% + 6px)}
+}

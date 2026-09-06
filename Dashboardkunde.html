@@ -38,7 +38,24 @@
   <header class="top">
     <div class="top-inner">
       <div class="top-left"><div class="logo">Tawano.</div><div id="status-pill" class="status"><span class="dot"></span><span id="status-text">Verbinde...</span></div></div>
-      <div class="userbar"><a class="site-link" href="https://tawano.de" target="_blank" rel="noopener">tawano.de</a><span id="user-email" class="user-email"></span><button class="btn btn-ghost" onclick="refreshCalls()">Aktualisieren</button><button class="btn btn-ghost" onclick="openPasswordDialog()">Passwort</button><button class="btn btn-ghost" onclick="logout()">Abmelden</button></div>
+      <div class="userbar">
+        <button class="btn btn-ghost" onclick="refreshCalls()">Aktualisieren</button>
+        <!-- Konto und Einstellungen hinter einem Knopf: die Kopfzeile bleibt ruhig,
+             auf dem Handy passt alles ohne Umbruch. -->
+        <div class="account">
+          <button id="account-button" class="account-btn" aria-haspopup="true" aria-expanded="false" onclick="toggleAccountMenu(event)">
+            <span id="account-initials" class="account-initials">–</span>
+            <span id="user-email" class="user-email"></span>
+            <span class="account-caret" aria-hidden="true">▾</span>
+          </button>
+          <div id="account-menu" class="account-menu hidden" role="menu">
+            <p class="account-head"><span>Angemeldet als</span><strong id="account-email"></strong></p>
+            <button class="account-item" role="menuitem" onclick="closeAccountMenu();openPasswordDialog()">Passwort ändern</button>
+            <a class="account-item" role="menuitem" href="https://tawano.de" target="_blank" rel="noopener" onclick="closeAccountMenu()">Zur Website tawano.de ↗</a>
+            <button class="account-item danger" role="menuitem" onclick="closeAccountMenu();logout()">Abmelden</button>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 

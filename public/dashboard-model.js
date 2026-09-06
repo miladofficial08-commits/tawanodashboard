@@ -126,7 +126,12 @@ function showMsg(text, type) {
 function showDashboard() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('dashboard-screen').classList.remove('hidden');
-  document.getElementById('user-email').textContent = currentUser && currentUser.email ? currentUser.email : '';
+  const email = currentUser && currentUser.email ? currentUser.email : '';
+  document.getElementById('user-email').textContent = email;
+  const accountEmail = document.getElementById('account-email');
+  if (accountEmail) accountEmail.textContent = email;
+  const initials = document.getElementById('account-initials');
+  if (initials) initials.textContent = (email.replace(/[^a-zA-ZäöüÄÖÜ]/g, '').slice(0, 2) || '–').toUpperCase();
   syncRefreshTimer();
 }
 function showLogin() {
@@ -432,4 +437,21 @@ async function submitPasswordChange(event) {
   } finally {
     buttons.forEach((b) => { b.disabled = false; });
   }
+}
+
+// Konto-Menue in der Kopfzeile (Passwort, Website, Abmelden).
+function toggleAccountMenu(event) {
+  if (event) event.stopPropagation();
+  const menu = document.getElementById('account-menu');
+  const button = document.getElementById('account-button');
+  if (!menu || !button) return;
+  const open = menu.classList.toggle('hidden');
+  button.setAttribute('aria-expanded', String(!open));
+}
+function closeAccountMenu() {
+  const menu = document.getElementById('account-menu');
+  const button = document.getElementById('account-button');
+  if (!menu || menu.classList.contains('hidden')) return;
+  menu.classList.add('hidden');
+  if (button) button.setAttribute('aria-expanded', 'false');
 }
