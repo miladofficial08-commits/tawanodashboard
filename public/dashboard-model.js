@@ -163,35 +163,11 @@ function computeSummaryText(call) {
   ];
   return parts.filter(Boolean).join(' | ').toLowerCase();
 }
-function englishSummaryDetected(text) {
-  const t = String(text || '').toLowerCase();
-  if (!t) return false;
-  return /\b(the|agent|user|call|conversation|greeting|hang up|hung up|almost immediately|ending)\b/.test(t);
-}
-function simpleEnglishToGerman(text) {
-  const t = String(text || '').toLowerCase();
-  if (!t) return '';
-  const parts = [];
-  if (t.includes('agent') || t.includes('the agent') || t.includes('agent began') || t.includes('agent introduced')) parts.push('Der Agent stellte sich vor und erklärte das Angebot.');
-  if (t.includes('disconnected by the user') || t.includes('user_hangup') || t.includes('user hangup') || t.includes('hang up') || t.includes('hung up') || t.includes('disconnected')) parts.push('Der Anrufer hat aufgelegt.');
-  if (t.includes('booking') || t.includes('book') || t.includes('booking tool')) parts.push('Problem mit Buchung/Terminvereinbarung.');
-  if (t.includes('mailbox') || t.includes('voicemail')) parts.push('Mailbox erreicht / Rückruf erforderlich.');
-  if (t.includes('callback') || t.includes('call back') || t.includes('call back request')) parts.push('Der Kunde möchte einen Rückruf.');
-  if (t.includes('error') || t.includes('technical') || t.includes('failed')) parts.push('Technisches Problem erkannt.');
-  return parts.join(' ');
-}
 function summaryFor(call) {
-  const analysis = call.callAnalysis || call.call_analysis || {};
-  const custom = analysis.custom_analysis_data || {};
-  const directSummary = String(custom.summary || analysis.call_summary || analysis.summary || call.summary || '').trim();
-  if (directSummary) {
-    if (englishSummaryDetected(directSummary)) {
-      const auto = simpleEnglishToGerman(directSummary);
-      if (auto) return auto.length > 220 ? (auto.slice(0, 217) + '...') : auto;
-    } else {
-      return directSummary.length > 220 ? (directSummary.slice(0, 217) + '...') : directSummary;
-    }
-  }
+  // detailSummarySource liefert immer Deutsch (englische Anbietertexte werden
+  // vorher umgeschrieben, siehe public/german.js).
+  const directSummary = detailSummarySource(call);
+  if (directSummary) return directSummary.length > 220 ? (directSummary.slice(0, 217) + '...') : directSummary;
   const raw = fullSummaryText(call);
   const reason = String(call.disconnectionReason || call.disconnection_reason || '').toLowerCase();
   if (raw.includes('mailbox') || reason.includes('voicemail')) return 'Der Kunde war nicht erreichbar und braucht einen Rückruf.';

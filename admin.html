@@ -29,6 +29,15 @@
       <button id="atab-customers" class="atab active" onclick="setAdminView('customers')">Kunden</button>
       <button id="atab-numbers" class="atab" onclick="setAdminView('numbers')">Kosten pro Nummer</button>
     </div>
+    <!-- Zum Herzeigen: vollstaendig gefuelltes Dashboard mit erfundenen Daten.
+         Kein Login, kein Schreibzugriff - siehe public/preview.js. -->
+    <div class="demo-card">
+      <div><strong>Beispiel-Dashboard für Kundengespräche</strong><p>Voll gefülltes Dashboard mit erfundenen Anrufen, Rückrufplan, Auswertung und Bewertungen. Ideal, um einem Betrieb zu zeigen, wie es bei ihm aussehen würde. Es werden keine echten Daten geladen oder gespeichert.</p></div>
+      <div class="demo-actions">
+        <a class="btn btn-main" href="/Dashboardkunde.html?demo=1" target="_blank" rel="noopener">Beispiel-Dashboard öffnen</a>
+        <button class="btn btn-ghost" onclick="copyDemoLink(this)">Link kopieren</button>
+      </div>
+    </div>
 
     <div id="view-customers">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">

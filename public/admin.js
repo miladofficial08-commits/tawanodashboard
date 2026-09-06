@@ -235,3 +235,11 @@ async function resetCustomerUsage(btn,mode) {
   }catch(e){msg.className='cmsg err';msg.textContent=e.message;}
   finally{btn.disabled=false;}
 }
+
+// Link zum Beispiel-Dashboard in die Zwischenablage - zum Verschicken vor einem Termin.
+function copyDemoLink(button) {
+  const url = location.origin + '/Dashboardkunde.html?demo=1';
+  const done = () => { const old = button.textContent; button.textContent = 'Link kopiert'; setTimeout(() => { button.textContent = old; }, 2000); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(() => window.prompt('Link kopieren:', url));
+  else window.prompt('Link kopieren:', url);
+}

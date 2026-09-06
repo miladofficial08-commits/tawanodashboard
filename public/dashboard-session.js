@@ -57,10 +57,23 @@ function defaultServerUrl() {
   // Nur beim Oeffnen als lokale Datei (file://) gibt es keine brauchbare Herkunft.
   return LIVE_SERVER_URL;
 }
-function detailSummarySource(call) {
+function providerSummaryText(call) {
   const analysis = call.callAnalysis || call.call_analysis || {};
   const custom = analysis.custom_analysis_data || {};
   return String(custom.summary || analysis.call_summary || analysis.summary || call.summary || '').trim();
+}
+// Im Dashboard steht ausschliesslich Deutsch. Englische Anbietertexte werden in
+// einen deutschen Satz umgeschrieben (public/german.js); das Original bleibt im
+// Detail unter "Originaltext des Anbieters" nachlesbar.
+function germanSummaryOf(call) {
+  return memoOnCall(call, '_german', textStamp(call), () => {
+    const raw = providerSummaryText(call);
+    if (typeof German === 'undefined') return { text: raw, translated: false, original: '' };
+    return German.germanSummary(raw);
+  });
+}
+function detailSummarySource(call) {
+  return germanSummaryOf(call).text;
 }
 // Anbieter liefern teils Schluessel (user_hangup), teils englischen Fliesstext
 // ("call ended by remote party"). Der Handwerker soll nie englischen Rohtext lesen -
@@ -228,9 +241,10 @@ function buildDetailModel(call, sourceText) {
   const sMap = { positive: 'Positiv', negative: 'Negativ', neutral: 'Neutral' };
   if (stimmung) stimmung = sMap[stimmung.toLowerCase()] || stimmung;
   const beendigung = mapDisconnectionReason(call.disconnectionReason || call.disconnection_reason);
+  const original = germanSummaryOf(call).original;
   const rueckruf = callbackInstructionFromText([naechster, norm, summaryFor(call)].join(' | '));
 
-  return { anliegen, details, naechster, erledigt, stimmung, beendigung, rueckruf };
+  return { anliegen, details, naechster, erledigt, stimmung, beendigung, rueckruf, original };
 }
 // Erzeugt das HTML für den Detail-Modal aus dem Modell
 function detailHtml(call, info, m, phone) {
@@ -272,5 +286,10 @@ function detailHtml(call, info, m, phone) {
   if (phone) meta.push('<div><em>Telefon</em><b>' + escHtml(phone) + '</b></div>');
   meta.push('<div><em>Zeitpunkt</em><b>' + escHtml(fmtTime(call.createdAt)) + '</b></div>');
   parts.push('<div class="detail-meta">' + meta.join('') + '</div>');
+  // Der Anbieter hat englisch zusammengefasst: oben steht die deutsche Fassung,
+  // hier bleibt der Originaltext einsehbar - damit nichts verloren geht.
+  if (m.original) {
+    parts.push('<details class="detail-original"><summary>Originaltext des Telefonanbieters (Englisch)</summary><p>' + escHtml(m.original) + '</p></details>');
+  }
   return parts.join('');
 }

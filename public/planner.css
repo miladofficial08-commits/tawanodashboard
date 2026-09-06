@@ -21,3 +21,34 @@
 
 .planner-filter-note{margin:0 0 10px;padding:8px 14px;border-radius:8px;background:#fff5e6;border:1px solid #f0dcbb;color:#7a5316;font-weight:600;font-size:.9rem}
 .planner-filter-note.hidden{display:none}
+
+/* Kunden-Feedback: Sterne, Verteilung, Liste - vorher unformatierter Rohtext. */
+.fb-summary{display:grid;grid-template-columns:minmax(200px,260px) 1fr;gap:16px;margin-bottom:16px}
+.fb-average{padding:16px 18px;border-radius:16px;border:1px solid var(--line);background:#f7faf8;display:flex;flex-direction:column;gap:2px}
+.fb-average span{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#73839a}
+.fb-average strong{font-size:44px;line-height:1}
+.fb-average small{color:var(--muted);font-size:12px;margin-bottom:6px}
+.fb-average.good{background:#eef8f3;border-color:#cfe8dd}.fb-average.good strong{color:#0f8a5f}
+.fb-average.mid{background:#fff7ec;border-color:#f2ddba}.fb-average.mid strong{color:#c96500}
+.fb-average.bad{background:#fff5f4;border-color:#f2cfca}.fb-average.bad strong{color:#b42318}
+.fb-spread{display:flex;flex-direction:column;justify-content:center;gap:8px}
+.fb-spread-row{display:grid;grid-template-columns:34px 1fr 28px;align-items:center;gap:10px;font-size:13px;font-weight:700;color:#4a5b72}
+.fb-spread-row b{text-align:right}
+.bar-fill.good{background:#0f8a5f}.bar-fill.mid{background:#c96500}.bar-fill.bad{background:#b42318}
+.fb-hint{margin:0 0 14px;padding:10px 14px;border-radius:10px;background:#fff5f4;border:1px solid #f2cfca;color:#8a2f24;font-weight:600;font-size:.92rem}
+.fb-list{display:flex;flex-direction:column;gap:8px}
+.fb-row{display:flex;align-items:center;gap:14px;padding:12px 16px;border:1px solid var(--line);border-left-width:4px;border-radius:12px;background:var(--card)}
+.fb-row.good{border-left-color:#0f8a5f}.fb-row.mid{border-left-color:#c96500}.fb-row.bad{border-left-color:#b42318}
+.fb-stars{letter-spacing:2px;color:#c9d3e0;font-size:1.05rem;white-space:nowrap}
+.fb-stars b{color:#e0a90f;font-weight:400}
+.fb-stars.bad b{color:#d4813a}
+.fb-meta{display:flex;flex-direction:column;flex:1;min-width:0}
+.fb-meta strong{font-size:.98rem}
+.fb-meta span{font-size:.82rem;color:var(--muted)}
+.fb-score{font-weight:800;color:#4a5b72;font-size:.9rem}
+@media(max-width:700px){.fb-summary{grid-template-columns:1fr}}
+
+/* Originaltext des Anbieters (nur wenn aus dem Englischen umgeschrieben wurde). */
+.detail-original{margin-top:14px;border:1px solid var(--line);border-radius:10px;background:#f8fafc;padding:10px 14px}
+.detail-original summary{cursor:pointer;font-weight:700;font-size:.88rem;color:#4a5b72}
+.detail-original p{margin:8px 0 0;color:var(--muted);font-size:.9rem;line-height:1.5}

@@ -47,6 +47,12 @@ Apply `supabase/call-workspace.sql` before deploying the planner. Applied to the
 
 Each refresh pages back through the provider until it reaches the conversations already stored, so a long gap between refreshes no longer drops calls. A larger backlog (first sync of an existing agent, or a very long pause) is worked off across several refreshes: one refresh fetches at most 1,500 conversations within a ~4.5 s budget, stores what it got, and remembers where to continue. While a backlog is open the dashboard says so ("Ältere Gespräche werden noch nachgeladen"); otherwise it states that the stored history is complete. Apply `supabase/call-history.sql` for the resume marker (`call_sync_state`); without it the refresh still pages correctly but only back to the last stored call, so an interrupted backlog is not resumed. The UI still loads up to 10,000 stored entries and explicitly flags that limit. This is not an unlimited billing ledger. ElevenLabs phone details are prefetched for the latest 12 calls of the newest page; opening an older conversation retrieves its missing number.
 
+## German-only display and the demo dashboard
+
+Providers return the call summary in the agent's language, often English. The dashboard never shows that: `public/german.js` detects English text and replaces it with a German sentence derived from the same text (topic, callback wish, transfer, voicemail) — nothing is invented, and the original stays available in the call detail under "Originaltext des Telefonanbieters". Disconnection reasons are mapped the same way, so "call ended by remote party" reads "Anrufer hat aufgelegt". The durable fix is still the agent itself: set its post-call analysis to German.
+
+`/Dashboardkunde.html?demo=1` opens a fully populated example dashboard (64 invented calls over three weeks, planner entries, analytics, 18 ratings) for showing prospects what their own dashboard would look like. It works on any host, needs no login, and writes nothing — sample data stays gated behind an explicit flag (`preview=1` on localhost, `demo=1` anywhere), enforced by `tests/preview-isolation.test.js`. The admin page links to it and can copy the link.
+
 ## Structured callback times
 
 Free text ("Rückruf morgen um 16 Uhr") is still read, but only unambiguous phrasing is accepted. The reliable path is a data field the assistant fills itself; it takes precedence over the free text, and an explicit edit in the dashboard takes precedence over both. Accepted field names (any one of them, per call):

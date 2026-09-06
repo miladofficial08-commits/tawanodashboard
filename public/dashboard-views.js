@@ -123,6 +123,8 @@ function renderMinutes() {
   const leftEl = document.getElementById('ring-left'); if (leftEl) leftEl.textContent = fmtMin(left) + ' Minuten übrig';
 }
 
+// Jedes Thema bekommt seine eigene Farbe - sechs gleich blaue Balken sagten nichts.
+const TOPIC_COLORS = {'Termine':'#1d4ed8','Angebote':'#0f8a5f','Öffnungszeiten':'#7c5cc4','Weiterleitung':'#0d7f9e','Rückruf':'#c96500','Problem':'#b42318','Sonstiges':'#5b6b83'};
 function renderAnalytics(items) {
   const total = items.length;
   const topicCounts = {};
@@ -133,15 +135,14 @@ function renderAnalytics(items) {
   const minutes = Math.round(minutesExact);
   const avgMin = total ? (minutesExact / total).toFixed(1).replace('.', ',') : '0';
   const cards = [
-    { label: 'Anrufe im Zeitraum', value: String(total) },
-    { label: 'Gesprächsminuten', value: String(minutes) },
-    { label: 'Ø Minuten / Anruf', value: avgMin },
-    { label: 'Rückrufe', value: String(callbacks) },
-    { label: 'Problemfälle', value: String(problems) },
-    { label: 'Themen erkannt', value: String(Object.keys(topicCounts).length) },
+    { label: 'Anrufe im Zeitraum', value: String(total), cls: 'info', hint: periodLabel() },
+    { label: 'Gesprächsminuten', value: String(minutes), cls: 'value', hint: 'Ø ' + avgMin + ' Min je Anruf' },
+    { label: 'Rückrufe', value: String(callbacks), cls: 'focus', hint: total ? Math.round((callbacks / total) * 100) + ' % aller Anrufe' : 'Noch keine Anrufe' },
+    { label: 'Problemfälle', value: String(problems), cls: problems ? 'alert' : '', hint: problems ? 'Bitte durchsehen' : 'Nichts Auffälliges' },
+    { label: 'Themen erkannt', value: String(Object.keys(topicCounts).length), cls: '', hint: 'Verschiedene Anliegen' },
   ];
   const cardsEl = document.getElementById('analytics-cards');
-  if (cardsEl) cardsEl.innerHTML = cards.map((c) => '<div class="card"><span>' + escHtml(c.label) + '</span><strong style="font-size:26px">' + escHtml(c.value) + '</strong></div>').join('');
+  if (cardsEl) cardsEl.innerHTML = cards.map((c) => '<div class="card ' + c.cls + '"><span>' + escHtml(c.label) + '</span><strong style="font-size:30px">' + escHtml(c.value) + '</strong><p>' + escHtml(c.hint) + '</p></div>').join('');
 
   const barsEl = document.getElementById('analytics-bars');
   const entries = topEntries(topicCounts, 6);
@@ -151,7 +152,8 @@ function renderAnalytics(items) {
       ? entries.map(([name, count]) => {
           const w = Math.round((count / max) * 100);
           const share = Math.round((count / Math.max(1, total)) * 100);
-          return '<div class="bar-row"><div class="bar-top"><span>' + escHtml(name) + '</span><span>' + count + ' · ' + share + ' %</span></div><div class="bar-track"><div class="bar-fill" style="width:' + w + '%"></div></div></div>';
+          const color = TOPIC_COLORS[name] || '#5b6b83';
+          return '<div class="bar-row"><div class="bar-top"><span>' + escHtml(name) + '</span><span>' + count + ' · ' + share + ' %</span></div><div class="bar-track"><div class="bar-fill" style="width:' + w + '%;background:' + color + '"></div></div></div>';
         }).join('')
       : '<div class="empty">Noch keine Anrufe für die Analyse.</div>';
   }
@@ -192,22 +194,53 @@ function setView(name) {
   if (name === 'feedback') loadFeedback();
 }
 
+function ratingClass(value) {
+  const rating = Number(value) || 0;
+  if (rating >= 4) return 'good';
+  if (rating === 3) return 'mid';
+  return 'bad';
+}
+function starRow(value) {
+  const rating = Math.max(0, Math.min(5, Math.round(Number(value) || 0)));
+  return '<span class="fb-stars ' + ratingClass(rating) + '" aria-label="' + rating + ' von 5 Sternen"><b>'
+    + '★'.repeat(rating) + '</b>' + '☆'.repeat(5 - rating) + '</span>';
+}
+// Bewertungen als lesbare Liste: Sterne, Nummer, Zeitpunkt, farblich nach Note.
+// Vorher liefen die Zeilen ueber CSS-Klassen, die es gar nicht gab - deshalb sah
+// die Seite aus wie zusammengeklebter Rohtext.
+function feedbackHtml(rows) {
+  const total = rows.length;
+  const avg = rows.reduce((sum, row) => sum + Number(row.rating || 0), 0) / Math.max(1, total);
+  const spread = [5, 4, 3, 2, 1].map((star) => [star, rows.filter((row) => Math.round(Number(row.rating) || 0) === star).length]);
+  const weak = rows.filter((row) => (Number(row.rating) || 0) <= 2).length;
+  const summary = '<div class="fb-summary">'
+    + '<div class="fb-average ' + ratingClass(Math.round(avg)) + '"><span>Durchschnitt</span><strong>' + avg.toFixed(1).replace('.', ',') + '</strong><small>von 5 · ' + total + ' Bewertungen</small>' + starRow(Math.round(avg)) + '</div>'
+    + '<div class="fb-spread">' + spread.map(([star, count]) => '<div class="fb-spread-row"><span>' + star + '★</span><div class="bar-track"><div class="bar-fill ' + ratingClass(star) + '" style="width:' + Math.round((count / Math.max(1, total)) * 100) + '%"></div></div><b>' + count + '</b></div>').join('') + '</div>'
+    + '</div>';
+  const hint = weak ? '<p class="fb-hint">' + weak + ' Bewertung' + (weak === 1 ? '' : 'en') + ' mit 1 oder 2 Sternen. Ein kurzer Rückruf lohnt sich meistens.</p>' : '';
+  const list = rows.map((row) => {
+    const rating = Math.round(Number(row.rating) || 0);
+    return '<article class="fb-row ' + ratingClass(rating) + '">' + starRow(rating)
+      + '<div class="fb-meta"><strong>' + escHtml(row.phone_number || 'Nummer unbekannt') + '</strong><span>' + escHtml(fmtTime(row.created_at)) + '</span></div>'
+      + '<span class="fb-score">' + rating + '/5</span></article>';
+  }).join('');
+  return summary + hint + '<div class="fb-list">' + list + '</div>';
+}
 async function loadFeedback() {
-  if (previewMode) { document.getElementById('feedback-body').textContent = 'Noch keine Bewertungen. Hier erscheinen Rückmeldungen deiner Kunden.'; return; }
   const el = document.getElementById('feedback-body');
-  if (!el || !authToken) return;
+  if (!el) return;
+  if (previewMode) {
+    const rows = typeof previewFeedback === 'function' ? previewFeedback() : [];
+    el.innerHTML = rows.length ? feedbackHtml(rows) : '<div class="empty">Noch keine Bewertungen. Hier erscheinen Rückmeldungen deiner Kunden.</div>';
+    return;
+  }
+  if (!authToken) return;
   el.innerHTML = '<div class="empty">Feedback wird geladen...</div>';
   try {
     const result = await fetchApi('/api/feedback-list', { cache: 'no-store', headers: authHeaders() });
     if (!result.res.ok || !result.data.ok) throw new Error(result.data.message || 'Feedback konnte nicht geladen werden');
     const rows = Array.isArray(result.data.feedback) ? result.data.feedback : [];
-    if (!rows.length) {
-      el.innerHTML = '<div class="empty">Noch keine Bewertungen vorhanden.</div>';
-      return;
-    }
-    const avg = rows.reduce((sum, row) => sum + Number(row.rating || 0), 0) / rows.length;
-    el.innerHTML = '<div class="detail-meta"><div><em>Durchschnitt</em><b>' + avg.toFixed(1).replace('.', ',') + ' / 5</b></div><div><em>Bewertungen</em><b>' + rows.length + '</b></div></div>'
-      + '<div class="call-list">' + rows.map((row) => '<div class="call-row"><div><strong>' + escHtml(String(row.rating) + ' / 5 Sterne') + '</strong><span>' + escHtml(row.phone_number || 'Nummer unbekannt') + '</span></div><time>' + escHtml(fmtTime(row.created_at)) + '</time></div>').join('') + '</div>';
+    el.innerHTML = rows.length ? feedbackHtml(rows) : '<div class="empty">Noch keine Bewertungen vorhanden.</div>';
   } catch (error) {
     el.innerHTML = '<div class="empty">' + escHtml(error.message) + '</div>';
   }

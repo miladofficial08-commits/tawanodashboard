@@ -76,3 +76,9 @@ details.det .inner{padding:4px 0 12px}
 .nbd div{border:1px solid #e6eef7;border-radius:10px;background:#fbfdff;padding:11px 12px;text-align:center}
 .nbd em{display:block;font-style:normal;font-size:10px;font-weight:800;text-transform:uppercase;color:#73839a;margin-bottom:4px}
 .nbd b{font-size:16px;color:#132238}
+
+/* Vorfuehr-Dashboard: auffaellig, aber klar als Beispiel gekennzeichnet. */
+.demo-card{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;margin:0 0 16px;padding:16px 20px;border-radius:16px;border:1px solid #cfe3f8;background:linear-gradient(120deg,#f2f8ff,#eef7f2)}
+.demo-card strong{display:block;font-size:1.02rem}
+.demo-card p{margin:4px 0 0;color:#4a5b72;font-size:.9rem;max-width:60ch;line-height:1.5}
+.demo-actions{display:flex;gap:8px;flex-wrap:wrap}

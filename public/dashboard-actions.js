@@ -198,9 +198,11 @@ document.getElementById('call-list').addEventListener('keydown', event => {
 document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeDetail(); closeContact(); } });
 if (previewMode) {
   calls = previewCalls();
-  currentTenant = { id:'preview-handwerk', name:'Bergmann Haustechnik', provider:'elevenlabs', detailed_analysis:true };
-  document.getElementById('preview-banner').classList.remove('hidden');
-  showDashboard(); render(); setStatus('ok', 'Beispieldaten');
+  currentTenant = demoMode ? DEMO_TENANT : { id:'preview-handwerk', name:'Bergmann Haustechnik', provider:'elevenlabs', detailed_analysis:true };
+  const banner = document.getElementById('preview-banner');
+  banner.classList.remove('hidden');
+  if (demoMode) banner.innerHTML = 'Beispiel-Dashboard · alle Anrufe, Namen und Bewertungen sind erfunden. Es werden keine echten Daten geladen oder gespeichert.';
+  showDashboard(); render(); setStatus('ok', demoMode ? 'Beispiel-Dashboard' : 'Beispieldaten');
 } else if (authToken) {
   showDashboard();
   refreshCalls();
