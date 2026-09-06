@@ -140,6 +140,7 @@
       <div class="hero"><span class="eyebrow">EIN ANRUF NACH DEM ANDEREN</span><h1>Dein Rückrufplan.</h1><p>Sehen, wer dran ist. Anrufen. Erledigen.</p><p id="planner-clock" class="planner-clock"></p></div>
       <div class="work-counts"><div><strong id="planner-open-count">0</strong><span>insgesamt offen</span></div><div><strong id="planner-today-count">0</strong><span>für heute geplant</span></div><div><strong id="planner-unscheduled-count">0</strong><span>Uhrzeit noch offen</span></div></div>
       <div class="planner-toolbar"><div class="filters"><button class="pill active" data-planner-mode="day" onclick="changePlanner('day')">Tag</button><button class="pill" data-planner-mode="week" onclick="changePlanner('week')">Woche</button></div><div class="planner-navigation"><button class="pill" aria-label="Zurück" onclick="stepPlanner(-1)">←</button><button class="pill" onclick="changePlanner(null,PlannerTime.dateKey())">Heute</button><input id="planner-date" aria-label="Planungsdatum" type="date" onchange="changePlanner(null,this.value)"><button class="pill" aria-label="Weiter" onclick="stepPlanner(1)">→</button></div><div class="filters"><button class="pill active" data-planner-status="open" onclick="plannerStatus='open';renderPlanner()">Offen</button><button class="pill" data-planner-status="done" onclick="plannerStatus='done';renderPlanner()">Erledigt</button></div></div>
+      <p id="planner-filter-note" class="planner-filter-note hidden" role="status"></p>
       <h2 id="planner-title" class="planner-heading"></h2><div id="planner-body"></div><div id="planner-extra"></div>
     </main>
   </div>
@@ -205,6 +206,8 @@
     <div id="contact-body"></div>
   </div>
 </div>
+
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <script src="/public/preview.js"></script>
 <script src="/public/planner-time.js"></script>

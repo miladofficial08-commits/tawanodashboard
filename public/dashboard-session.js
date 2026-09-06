@@ -62,20 +62,65 @@ function detailSummarySource(call) {
   const custom = analysis.custom_analysis_data || {};
   return String(custom.summary || analysis.call_summary || analysis.summary || call.summary || '').trim();
 }
+// Anbieter liefern teils Schluessel (user_hangup), teils englischen Fliesstext
+// ("call ended by remote party"). Der Handwerker soll nie englischen Rohtext lesen -
+// darum erst die bekannten Schluessel, dann Stichwoerter, sonst ein neutraler Satz.
+const DISCONNECT_LABELS = {
+  user_hangup: 'Anrufer hat aufgelegt',
+  agent_hangup: 'Assistent hat aufgelegt',
+  call_transfer: 'Weiterleitung',
+  voicemail_reached: 'Mailbox erreicht',
+  dial_no_answer: 'Keine Antwort',
+  dial_busy: 'Besetzt',
+  dial_failed: 'Anruf fehlgeschlagen',
+  inactivity: 'Gespräch ohne Reaktion beendet',
+  max_duration_reached: 'Maximaldauer erreicht',
+};
+const DISCONNECT_HINTS = [
+  [/remote party|caller|anrufer|user hung|user hang/, 'Anrufer hat aufgelegt'],
+  [/agent|assistant|assistent/, 'Assistent hat aufgelegt'],
+  [/transfer|weitergeleitet/, 'Weiterleitung'],
+  [/voicemail|mailbox/, 'Mailbox erreicht'],
+  [/no answer|unanswered|keine antwort/, 'Keine Antwort'],
+  [/busy|besetzt/, 'Besetzt'],
+  [/inactiv|timeout|silence/, 'Gespräch ohne Reaktion beendet'],
+  [/max.?duration/, 'Maximaldauer erreicht'],
+  [/error|failed|fehler/, 'Technisch beendet'],
+];
 function mapDisconnectionReason(reasonRaw) {
   const reason = String(reasonRaw || '').trim().toLowerCase();
-  const mapped = {
-    user_hangup: 'Anrufer hat aufgelegt',
-    agent_hangup: 'Agent hat aufgelegt',
-    call_transfer: 'Weiterleitung',
-    voicemail_reached: 'Mailbox erreicht',
-    dial_no_answer: 'Keine Antwort',
-    dial_busy: 'Besetzt',
-    dial_failed: 'Anruf fehlgeschlagen',
-    inactivity: 'Inaktivität',
-    max_duration_reached: 'Maximaldauer erreicht',
-  };
-  return mapped[reason] || (reason ? reason.replace(/_/g, ' ') : '-');
+  if (!reason) return '-';
+  if (DISCONNECT_LABELS[reason]) return DISCONNECT_LABELS[reason];
+  const hint = DISCONNECT_HINTS.find(([pattern]) => pattern.test(reason));
+  if (hint) return hint[1];
+  return /[a-z]{3,}\s[a-z]{3,}/.test(reason) ? 'Gespräch beendet' : reason.replace(/_/g, ' ');
+}
+// Ergebnisse je Gespraech zwischenspeichern: Einstufung und Rueckrufzeit werden beim
+// Rendern mehrfach gebraucht, und die Liste kann seit der vollstaendigen Historie
+// tausende Gespraeche enthalten. Der Stempel macht den Cache bei jeder Aenderung
+// ungueltig; `calls` wird beim Aktualisieren ohnehin komplett ersetzt.
+function workStamp(call) {
+  const work = call.work || {};
+  return [work.state || '', work.state_manual ? 1 : 0, work.schedule_manual ? 1 : 0, work.scheduled_at || '', work.updated_at || ''].join('|');
+}
+function memoOnCall(call, slot, stamp, compute) {
+  if (call && call[slot] && call[slot].stamp === stamp) return call[slot].value;
+  const value = compute();
+  if (call) {
+    try { Object.defineProperty(call, slot, { value: { stamp, value }, configurable: true, writable: true, enumerable: false }); }
+    catch (_) { /* eingefrorene Objekte laufen ohne Cache weiter */ }
+  }
+  return value;
+}
+// Kurze Rueckmeldung fuer Aktionen, die sonst nur "verschwinden" (erledigt, geplant).
+let toastTimer = null;
+function toast(text, kind) {
+  const el = document.getElementById('toast');
+  if (!el) { setStatus('ok', text); return; }
+  el.textContent = text;
+  el.className = 'toast ' + (kind || 'ok');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
 }
 function extractFieldByLabels(text, labels) {
   const source = String(text || '');

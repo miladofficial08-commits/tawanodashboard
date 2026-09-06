@@ -1,9 +1,13 @@
 (function (root) {
   const zone = 'Europe/Berlin';
+  // Ein einziger Formatter fuer alle Aufrufe: `new Intl.DateTimeFormat` je Anruf hat
+  // die Liste bei vielen Gespraechen spuerbar ausgebremst.
+  let formatter = null;
   function parts(value) {
     const d = new Date(value);
     if (!Number.isFinite(d.getTime())) return {};
-    return Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(d).map(p => [p.type, p.value]));
+    if (!formatter) formatter = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+    return Object.fromEntries(formatter.formatToParts(d).map(p => [p.type, p.value]));
   }
   function dateKey(value = Date.now()) {
     const p = parts(value); return p.year ? `${p.year}-${p.month}-${p.day}` : '';

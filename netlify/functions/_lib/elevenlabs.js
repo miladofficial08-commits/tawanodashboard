@@ -77,6 +77,7 @@ function mapTerminationReason(value) {
   if (s.includes('busy')) return 'dial_busy';
   if (s.includes('no answer') || s.includes('unanswered')) return 'dial_no_answer';
   if (s.includes('agent') && (s.includes('hung') || s.includes('ended') || s.includes('end call'))) return 'agent_hangup';
+  if (s.includes('remote party')) return 'user_hangup';
   if ((s.includes('user') || s.includes('caller') || s.includes('client')) && (s.includes('hung') || s.includes('ended') || s.includes('disconnect'))) return 'user_hangup';
   return raw;
 }

@@ -37,7 +37,14 @@ async function fetchApi(path, init) {
   throw lastError || new Error('API nicht erreichbar.');
 }
 function escHtml(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function fmtTime(iso) { if (!iso) return '-'; return new Date(iso).toLocaleString('de-DE', { timeZone:'Europe/Berlin', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+let timeFormatter = null; // wiederverwenden statt je Anruf neu bauen
+function fmtTime(iso) {
+  if (!iso) return '-';
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '-';
+  if (!timeFormatter) timeFormatter = new Intl.DateTimeFormat('de-DE', { timeZone:'Europe/Berlin', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return timeFormatter.format(date);
+}
 function isToday(iso) { if (!iso) return false; const a = new Date(iso); const b = new Date(); return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
 function isThisWeek(iso) {
   if (!iso) return false;
@@ -135,7 +142,13 @@ function customerLabel(call) {
   if (phone) return 'Anrufer ' + phone;
   return 'Neue Anfrage';
 }
+function textStamp(call) {
+  return String(call.summary || '') + '|' + String(call.disconnectionReason || call.disconnection_reason || '');
+}
 function fullSummaryText(call) {
+  return memoOnCall(call, '_text', textStamp(call), () => computeSummaryText(call));
+}
+function computeSummaryText(call) {
   const analysis = call.callAnalysis || call.call_analysis || {};
   const custom = analysis.custom_analysis_data || {};
   const parts = [
@@ -188,7 +201,13 @@ function summaryFor(call) {
   if (raw.includes('preis') || raw.includes('kosten') || raw.includes('angebot') || raw.includes('price')) return 'Der Kunde hatte eine Frage zu Preis oder Angebot.';
   if (raw.includes('beschwerde') || raw.includes('problem') || raw.includes('fehler') || raw.includes('technical error')) return 'Es gab ein Problem im Gespräch und Nachfassen ist sinnvoll.';
   if (raw.includes('aufgelegt') || raw.includes('hang up') || raw.includes('hung up')) return 'Das Gespräch wurde schnell beendet.';
-  return 'Das Gespräch wurde kurz zusammengefasst.';
+  // Ohne Zusammenfassung des Anbieters wenigstens sagen, was wirklich bekannt ist -
+  // "Das Gespräch wurde kurz zusammengefasst." hat dem Handwerker nichts gebracht.
+  const seconds = Math.round((Number(call.durationMs) || 0) / 1000);
+  if (seconds > 0 && seconds < 20) return 'Sehr kurzer Anruf (' + seconds + ' Sek). Es kam kein Anliegen zur Sprache.';
+  if (reason.includes('remote') || reason.includes('user_hangup')) return 'Der Anrufer hat aufgelegt, bevor ein Anliegen erfasst wurde.';
+  if (seconds > 0) return 'Anruf über ' + (seconds >= 60 ? Math.round(seconds / 60) + ' Min' : seconds + ' Sek') + '. Der Anbieter hat keine Zusammenfassung geliefert.';
+  return 'Zu diesem Anruf liegt keine Zusammenfassung vor.';
 }
 function callFlags(call) {
   const txt = fullSummaryText(call);
@@ -200,6 +219,9 @@ function callFlags(call) {
   return { transfer, callback, problem };
 }
 function classifyCall(call) {
+  return memoOnCall(call, '_classify', workStamp(call), () => computeClassification(call));
+}
+function computeClassification(call) {
   if (isTaskMarkedDone(call)) return { key:'done', label:'Erledigt', badge:'done', next:'Bereits erledigt' };
   if (call.work?.state_manual && call.work.state === 'open') return {key:'callback',label:'Offen',badge:'callback',next:'Anliegen bearbeiten'};
   const status = String(call.status || call.retellStatus || '').toLowerCase();
@@ -219,6 +241,9 @@ function classifyCall(call) {
   return { key:'problem', label:'Bitte prüfen', badge:'problem', next:'Gespräch öffnen und Anliegen prüfen' };
 }
 function topicFromCall(call) {
+  return memoOnCall(call, '_topic', textStamp(call), () => computeTopic(call));
+}
+function computeTopic(call) {
   const txt = fullSummaryText(call);
   if (txt.includes('termin') || txt.includes('buchung') || txt.includes('appointment') || txt.includes('book')) return 'Termine';
   if (txt.includes('preis') || txt.includes('kosten') || txt.includes('angebot') || txt.includes('price')) return 'Angebote';

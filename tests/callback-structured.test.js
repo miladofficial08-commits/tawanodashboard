@@ -34,8 +34,10 @@ const ctx = {
   detailSummarySource: (call) => call.summary || '',
   console,
 };
+const session = fs.readFileSync(require.resolve('../public/dashboard-session.js'), 'utf8');
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require.resolve('../public/planner-time.js'), 'utf8'), ctx);
+vm.runInContext(session.slice(session.indexOf('function workStamp('), session.indexOf('// Kurze Rueckmeldung')), ctx);
 vm.runInContext(source, ctx);
 
 const base = {call_id: 'c1', createdAt: created};

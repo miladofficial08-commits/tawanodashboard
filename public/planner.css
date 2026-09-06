@@ -5,3 +5,19 @@
 @media(min-width:761px){.period-bar{margin-left:252px}}
 .delete-confirm{padding:14px;background:#fff5f1;border:1px solid #edd5ca;border-radius:8px;margin-top:16px}.delete-confirm p{color:#814b37}
 @media(max-width:760px){#dashboard-screen .top{position:relative}#dashboard-screen .tabs,#dashboard-screen .preview-banner:not(.hidden)~.tabs{top:0}.tabs-inner{scrollbar-width:none}.tabs-inner::-webkit-scrollbar{display:none}}
+
+/* Sichtbare Rueckmeldung: erledigte Karte quittiert kurz, bevor sie verschwindet. */
+.row.is-done-flash,.planner-card.is-done-flash{position:relative;overflow:hidden;animation:doneOut .7s ease forwards}
+.row.is-done-flash::after,.planner-card.is-done-flash::after{content:"✓  Erledigt";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;background:#0f8a5f;color:#fff;font-weight:700;font-size:1.05rem;letter-spacing:.02em;border-radius:inherit;z-index:4;animation:doneIn .16s ease both}
+@keyframes doneIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@keyframes doneOut{0%,62%{opacity:1;transform:none}100%{opacity:0;transform:scale(.97);max-height:0;margin:0;padding:0;border-width:0}}
+@media(prefers-reduced-motion:reduce){.row.is-done-flash,.planner-card.is-done-flash{animation:none}.row.is-done-flash::after,.planner-card.is-done-flash::after{animation:none}}
+
+/* Kurzer Hinweis unten mittig - fuer Aktionen, die sonst nur "verschwinden". */
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:60;max-width:min(92vw,460px);padding:12px 18px;border-radius:999px;background:#10261e;color:#fff;font-weight:600;font-size:.95rem;box-shadow:0 12px 30px rgba(0,0,0,.22);animation:toastIn .18s ease both}
+.toast.err{background:#8f2318}
+.toast.hidden{display:none}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+
+.planner-filter-note{margin:0 0 10px;padding:8px 14px;border-radius:8px;background:#fff5e6;border:1px solid #f0dcbb;color:#7a5316;font-weight:600;font-size:.9rem}
+.planner-filter-note.hidden{display:none}

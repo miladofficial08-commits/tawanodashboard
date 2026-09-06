@@ -30,7 +30,7 @@ function renderList(items) {
     const callIdx = calls.indexOf(item.call);
     const hasPhone = Boolean(item.phone);
     const isDone = item.info.key === 'done';
-    return '<div class="row" onclick="openDetail(' + callIdx + ')" role="button" tabindex="0">'
+    return '<div class="row" data-call="' + escHtml(item.key) + '" onclick="openDetail(' + callIdx + ')" role="button" tabindex="0">'
       + '<div class="task-main">'
         + '<div class="task-head">'
           + '<span class="priority ' + escHtml(item.priority.className) + '">' + escHtml(item.priority.label) + '</span>'
@@ -77,8 +77,32 @@ function forwardTask(callIdx) {
   }
   openDetail(callIdx);
 }
+// Ohne Rueckmeldung verschwand die Karte einfach - es war nicht zu erkennen, ob
+// gespeichert wurde. Jetzt: Haken auf der Karte, dann ausblenden, dann Hinweis.
+function callCardNodes(key) {
+  return Array.from(document.querySelectorAll('[data-call]')).filter((node) => node.getAttribute('data-call') === key);
+}
+function flashDone(key) {
+  const nodes = callCardNodes(key);
+  nodes.forEach((node) => node.classList.add('is-done-flash'));
+  if (!nodes.length) return Promise.resolve();
+  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return new Promise((resolve) => setTimeout(resolve, reduced ? 220 : 700));
+}
+function clearDoneFlash(key) {
+  callCardNodes(key).forEach((node) => node.classList.remove('is-done-flash'));
+}
 async function markTaskDone(callIdx) {
-  try { await saveWork(callIdx,{state:'done'}); } catch(e) { alert(e.message); }
+  const call = calls[callIdx];
+  if (!call) return;
+  const key = callKey(call);
+  const shown = flashDone(key);
+  try { await saveWork(callIdx,{state:'done'},undefined,{defer:true}); }
+  catch(e) { clearDoneFlash(key); alert(e.message); return; }
+  await shown;
+  render();
+  setStatus('ok', previewMode ? 'Vorschau geändert' : 'Gespeichert');
+  toast('Erledigt · zu finden im Reiter „Erledigt“');
 }
 
 async function openDetail(callIdx) {

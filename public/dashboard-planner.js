@@ -20,6 +20,9 @@ function callbackFieldsFor(call) {
 }
 // Reihenfolge: eigene Eingabe schlaegt strukturierte Angabe, diese schlaegt Freitext.
 function scheduleFor(call) {
+  return memoOnCall(call, '_schedule', workStamp(call), () => computeSchedule(call));
+}
+function computeSchedule(call) {
   const work = call.work || {};
   if (work.schedule_manual) {
     const at = work.scheduled_at;
@@ -44,7 +47,7 @@ function plannerCard(entry,compact=false) {
   const {call,index,schedule,info}=entry;
   const past = schedule.iso && Date.parse(schedule.iso)<Date.now() && info.key!=='done';
   const time = schedule.time ? (schedule.end ? schedule.time+'–'+schedule.end : schedule.time)+' Uhr' : 'Uhrzeit offen';
-  return '<article class="planner-card '+(past?'is-overdue':'')+'">'
+  return '<article class="planner-card '+(past?'is-overdue':'')+'" data-call="'+escHtml(callKey(call))+'">'
     + '<button class="planner-open" onclick="openDetail('+index+')"><span class="planner-time">'+escHtml(time)+(past?'<small>Rückruf fällig</small>':'')+'</span>'
     + '<span class="planner-person"><strong>'+escHtml(customerLabel(call))+'</strong><span>'+escHtml(callBrief(call).title)+'</span>'
     + (call.work?.notes?'<small class="note-preview">Notiz: '+escHtml(shortFact(call.work.notes,90))+'</small>':'')+'</span></button>'
@@ -66,6 +69,12 @@ function renderPlanner() {
   document.getElementById('planner-open-count').textContent=open.length;
   document.getElementById('planner-today-count').textContent=open.filter(c=>scheduleFor(c).day===today).length;
   document.getElementById('planner-unscheduled-count').textContent=open.filter(c=>!scheduleFor(c).iso).length;
+  const filterNote=document.getElementById('planner-filter-note');
+  if(filterNote){
+    const hiddenOpen=plannerStatus==='done'?open.filter(c=>days.includes(scheduleFor(c).day)).length:0;
+    filterNote.textContent=hiddenOpen?'Ansicht steht auf „Erledigt“ · '+hiddenOpen+' offene Rückrufe sind ausgeblendet.':'';
+    filterNote.classList.toggle('hidden',!hiddenOpen);
+  }
   root.className=plannerMode==='week'?'planner-week':'planner-day';
   root.innerHTML=days.map(day=>{
     const group=entries.filter(e=>e.schedule.day===day);
@@ -76,17 +85,20 @@ function renderPlanner() {
       return marker+plannerCard(e,plannerMode==='week');
     }).join('');
     if(plannerMode==='day' && day===today && !inserted)cards+='<div class="now-line">Jetzt · '+PlannerTime.clock()+'</div>';
-    return '<section class="planner-column '+(day===today?'is-today':'')+'"><h3>'+escHtml(new Date(day+'T12:00Z').toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit',timeZone:'Europe/Berlin'}))+'<span>'+group.length+'</span></h3>'+cards+(!group.length?'<p class="planner-empty">Keine Rückrufe geplant.</p>':'')+'</section>';
+    return '<section class="planner-column '+(day===today?'is-today':'')+'"><h3>'+escHtml(new Date(day+'T12:00Z').toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit',timeZone:'Europe/Berlin'}))+'<span>'+group.length+'</span></h3>'+cards+(!group.length?'<p class="planner-empty">'+(plannerStatus==='done'?'Keine erledigten Rückrufe an diesem Tag.':'Keine Rückrufe geplant.')+'</p>':'')+'</section>';
   }).join('');
   const overdue=entries.filter(e=>e.schedule.day && e.schedule.day<days[0]);
   const unclear=entries.filter(e=>!e.schedule.day);
   const later=entries.filter(e=>e.schedule.day>days[days.length-1]);
   document.getElementById('planner-extra').innerHTML=[
     [plannerStatus==='done'?'Früher erledigt':'Frühere offene Rückrufe',overdue],[plannerStatus==='done'?'Abgeschlossen ohne Rückruftermin':'Zeit noch klären',unclear],['Später geplant',later]
-  ].filter(([,rows])=>rows.length).map(([title,rows])=>'<details class="planner-group" '+(title==='Zeit noch klären'||title==='Frühere offene Rückrufe'?'open':'')+'><summary>'+title+' <span>'+rows.length+'</span></summary>'+rows.map(e=>(e.schedule.day?'<p class="group-date">'+escHtml(dayLabel(e.schedule.day))+'</p>':'')+plannerCard(e)).join('')+'</details>').join('');
+  ].filter(([,rows])=>rows.length).map(([title,rows])=>'<details class="planner-group" '+(title==='Zeit noch klären'||title==='Frühere offene Rückrufe'?'open':'')+'><summary>'+title+' <span>'+rows.length+'</span></summary>'
+    +rows.slice(0,GROUP_LIMIT).map(e=>(e.schedule.day?'<p class="group-date">'+escHtml(dayLabel(e.schedule.day))+'</p>':'')+plannerCard(e)).join('')
+    +(rows.length>GROUP_LIMIT?'<p class="planner-empty">… und '+(rows.length-GROUP_LIMIT)+' weitere. Über den Zeitraum oben eingrenzen.</p>':'')+'</details>').join('');
 }
 function renderTasks() { renderPlanner(); }
-async function saveWork(index,patch,expectedVersion) {
+const GROUP_LIMIT = 40; // lange Listen bremsen die Ansicht; Rest ueber den Zeitraum
+async function saveWork(index,patch,expectedVersion,options) {
   if(workSaving)throw new Error('Bitte warte, bis die Änderung gespeichert ist.');
   const call=calls[index]; if(!call)throw new Error('Gespräch nicht gefunden.');
   workSaving=true; workRevision++;
@@ -100,11 +112,13 @@ async function saveWork(index,patch,expectedVersion) {
     }
     call.work=work;
     if(work.state==='deleted')calls=calls.filter(c=>c!==call);
+    if(options && options.defer)return work;
     render(); setStatus('ok',previewMode?'Vorschau geändert':'Gespeichert');
+    return work;
   } finally {workSaving=false;workRevision++;}
 }
 async function reopenTask(index) {
-  try {await saveWork(index,{state:'open'});}catch(e){alert(e.message);}
+  try {await saveWork(index,{state:'open'});toast('Wieder geöffnet');}catch(e){alert(e.message);}
 }
 function workEditorHtml(call) {
   const s=scheduleFor(call);
@@ -131,13 +145,30 @@ async function saveWorkEditor(nextState) {
   if(nextState)patch.state=nextState;
   const buttons=document.querySelectorAll('#work-editor button'); buttons.forEach(b=>b.disabled=true);
   msg.textContent='Speichert…';
-  try {await saveWork(index,patch,detailWorkVersion);detailWorkVersion=call.work?.updated_at;msg.textContent=previewMode?'In der Vorschau geändert.':'Gespeichert – auf allen Geräten verfügbar.';if(nextState)closeDetail();}
+  try {
+    await saveWork(index,patch,detailWorkVersion);
+    detailWorkVersion=call.work?.updated_at;
+    msg.textContent=previewMode?'In der Vorschau geändert.':'Gespeichert – auf allen Geräten verfügbar.';
+    // Nach dem Planen direkt auf den geplanten Tag springen (und auf "Offen"),
+    // sonst sucht der Handwerker seinen gerade gesetzten Rueckruf im falschen Filter.
+    if('scheduled_at' in patch){
+      if(patch.scheduled_at){
+        plannerDay=PlannerTime.dateKey(patch.scheduled_at);
+        plannerStatus='open';
+        renderPlanner();
+        toast('Rückruf geplant: '+dayLabel(plannerDay)+', '+PlannerTime.clock(patch.scheduled_at)+' Uhr');
+      } else toast('Rückrufzeit zurückgestellt');
+    }
+    if(nextState==='done')toast('Erledigt · zu finden im Reiter „Erledigt“');
+    if(nextState==='open')toast('Wieder geöffnet');
+    if(nextState)closeDetail();
+  }
   catch(e){msg.textContent=e.message;}
   finally{buttons.forEach(b=>b.disabled=false);}
 }
 function finishWorkEditor(){const c=calls.find(c=>callKey(c)===detailCallId); if(c)saveWorkEditor(classifyCall(c).key==='done'?'open':'done');}
 async function deleteWorkEditor() {
   const index=calls.findIndex(c=>callKey(c)===detailCallId);
-  try {await saveWork(index,{state:'deleted'},detailWorkVersion);closeDetail();}catch(e){document.getElementById('work-message').textContent=e.message;}
+  try {await saveWork(index,{state:'deleted'},detailWorkVersion);closeDetail();toast('Aus dem Dashboard gelöscht');}catch(e){document.getElementById('work-message').textContent=e.message;}
 }
 setInterval(()=>{if(!document.hidden && currentTenant)renderPlanner();},30000);

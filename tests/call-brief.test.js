@@ -16,10 +16,11 @@ vm.runInContext(session.slice(session.indexOf('function normalizeSummary('),sess
 context.detailSummarySource = c => c.summary || '';
 context.classifyCall = () => ({key:'callback',next:'Zurückrufen'});
 context.nextStepForCall = () => 'Zurückrufen';
+context.summaryFor = c => c.summary || 'Zu diesem Anruf liegt keine Zusammenfassung vor.';
 vm.runInContext(fs.readFileSync('public/dashboard-work.js','utf8'),context);
 const brief = context.callBrief({summary:'Rückruf gewünscht: Die Heizung bleibt kalt. Herr Weber ist ab 14 Uhr erreichbar.'});
 assert.equal(brief.title,'Die Heizung bleibt kalt');
 assert.equal(brief.facts.length,1,'do not repeat the headline in bullets');
 assert.equal(brief.time,'Rückruf: ab 14 Uhr');
-assert.equal(context.callBrief({summary:''}).title,'Anliegen noch nicht verfügbar');
+assert.equal(context.callBrief({summary:''}).title,'Zu diesem Anruf liegt keine Zusammenfassung vor','ohne Anbieter-Text den bekannten Sachstand zeigen');
 console.log('Scannable call briefs passed');

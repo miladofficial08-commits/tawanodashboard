@@ -10,7 +10,9 @@ function callBrief(call) {
   const explicit = extractFieldByLabels(normalized, ['Anliegen', 'Anfrage', 'Grund']);
   const sentences = normalized.split(/(?<=[.!?])\s+|\n/).map(s => s.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
   const chosen = explicit || sentences.find(s => !/^(Details|Stimmung|Erledigt|Nächster Schritt):/i.test(s)) || '';
-  const headline = (chosen || 'Anliegen noch nicht verfügbar')
+  // Ohne Anbieter-Text lieber sagen, was bekannt ist (Dauer, Abbruchgrund),
+  // statt "Anliegen noch nicht verfügbar" stehen zu lassen.
+  const headline = (chosen || summaryFor(call))
     .replace(/^Anliegen:\s*/i, '').replace(/^Rückruf gewünscht:\s*/i, '').replace(/[.!]$/, '');
   const details = sentences.filter(s => s !== chosen && !headline.includes(s.replace(/[.!]$/, '')) && !/^(Stimmung|Erledigt|Nächster Schritt|Anliegen):/i.test(s));
   const info = classifyCall(call);
