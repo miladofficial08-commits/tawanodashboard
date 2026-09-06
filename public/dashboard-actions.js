@@ -195,7 +195,7 @@ function closeDetail(event) {
 document.getElementById('call-list').addEventListener('keydown', event => {
   if (event.target.classList.contains('row') && ['Enter', ' '].includes(event.key)) { event.preventDefault(); event.target.click(); }
 });
-document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeDetail(); closeContact(); } });
+document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeDetail(); closeContact(); closePasswordDialog(); } });
 if (previewMode) {
   calls = previewCalls();
   currentTenant = demoMode ? DEMO_TENANT : { id:'preview-handwerk', name:'Bergmann Haustechnik', provider:'elevenlabs', detailed_analysis:true };

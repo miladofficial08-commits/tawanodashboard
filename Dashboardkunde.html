@@ -38,7 +38,7 @@
   <header class="top">
     <div class="top-inner">
       <div class="top-left"><div class="logo">Tawano.</div><div id="status-pill" class="status"><span class="dot"></span><span id="status-text">Verbinde...</span></div></div>
-      <div class="userbar"><span id="user-email" class="user-email"></span><button class="btn btn-ghost" onclick="refreshCalls()">Aktualisieren</button><button class="btn btn-ghost" onclick="logout()">Abmelden</button></div>
+      <div class="userbar"><span id="user-email" class="user-email"></span><button class="btn btn-ghost" onclick="refreshCalls()">Aktualisieren</button><button class="btn btn-ghost" onclick="openPasswordDialog()">Passwort</button><button class="btn btn-ghost" onclick="logout()">Abmelden</button></div>
     </div>
   </header>
 
@@ -193,6 +193,26 @@
       <button onclick="closeDetail()" title="Schließen">×</button>
     </div>
     <div id="detail-body"></div>
+  </div>
+</div>
+
+<div id="password-overlay" class="detail-overlay hidden" onclick="closePasswordDialog(event)">
+  <div class="detail-panel password-panel">
+    <div class="detail-panel-head">
+      <div class="head-title"><h3>Passwort ändern</h3><div class="sub" id="password-user"></div></div>
+      <button onclick="closePasswordDialog()" title="Schließen">×</button>
+    </div>
+    <form class="password-form" onsubmit="submitPasswordChange(event)">
+      <label>Aktuelles Passwort<input id="pw-current" type="password" autocomplete="current-password" required></label>
+      <label>Neues Passwort<input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label>Neues Passwort wiederholen<input id="pw-repeat" type="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="pw-hint">Mindestens 8 Zeichen. Gilt ab sofort auf allen Geräten. Du bleibst hier angemeldet.</p>
+      <p id="pw-message" class="pw-message" role="status"></p>
+      <div class="planner-actions">
+        <button class="btn-mini primary" type="submit">Passwort speichern</button>
+        <button class="btn-mini" type="button" onclick="closePasswordDialog()">Abbrechen</button>
+      </div>
+    </form>
   </div>
 </div>
 

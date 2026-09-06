@@ -52,3 +52,13 @@
 .detail-original{margin-top:14px;border:1px solid var(--line);border-radius:10px;background:#f8fafc;padding:10px 14px}
 .detail-original summary{cursor:pointer;font-weight:700;font-size:.88rem;color:#4a5b72}
 .detail-original p{margin:8px 0 0;color:var(--muted);font-size:.9rem;line-height:1.5}
+
+/* Passwort aendern */
+.password-panel{max-width:460px}
+.password-form{padding:20px;display:flex;flex-direction:column;gap:14px}
+.password-form label{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:.9rem;color:#213b57}
+.password-form input{padding:11px 13px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff}
+.password-form input:focus{outline:2px solid #0f8a5f;outline-offset:1px}
+.pw-hint{margin:0;color:var(--muted);font-size:.86rem;line-height:1.5}
+.pw-message{margin:0;min-height:1.2em;font-weight:600;font-size:.9rem;color:#4a5b72}
+.pw-message.err{color:#b42318}

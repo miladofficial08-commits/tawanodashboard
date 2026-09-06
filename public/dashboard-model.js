@@ -384,3 +384,52 @@ async function startTestCall() {
   }
 }
 
+
+// Passwort selbst aendern. Das aktuelle Passwort ist Pflicht (siehe
+// netlify/functions/client-auth-password.js); die Sitzung bleibt danach bestehen.
+function openPasswordDialog() {
+  if (previewMode) { alert('Beispielmodus: Hier würdest du dein Passwort ändern.'); return; }
+  ['pw-current','pw-new','pw-repeat'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const msg = document.getElementById('pw-message');
+  if (msg) { msg.textContent = ''; msg.className = 'pw-message'; }
+  const who = document.getElementById('password-user');
+  if (who) who.textContent = (currentUser && currentUser.email) || '';
+  document.getElementById('password-overlay').classList.remove('hidden');
+  setTimeout(() => { const el = document.getElementById('pw-current'); if (el) el.focus(); }, 60);
+}
+function closePasswordDialog(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById('password-overlay').classList.add('hidden');
+}
+async function submitPasswordChange(event) {
+  if (event) event.preventDefault();
+  const msg = document.getElementById('pw-message');
+  const current = document.getElementById('pw-current').value;
+  const next = document.getElementById('pw-new').value;
+  const repeat = document.getElementById('pw-repeat').value;
+  const fail = (text) => { msg.className = 'pw-message err'; msg.textContent = text; };
+  if (next !== repeat) return fail('Die beiden neuen Passwörter stimmen nicht überein.');
+  if (next.length < 8) return fail('Das neue Passwort braucht mindestens 8 Zeichen.');
+  if (next === current) return fail('Das neue Passwort muss sich vom bisherigen unterscheiden.');
+  const buttons = document.querySelectorAll('.password-form button');
+  buttons.forEach((b) => { b.disabled = true; });
+  msg.className = 'pw-message';
+  msg.textContent = 'Wird gespeichert…';
+  try {
+    const result = await fetchApi('/api/client-auth/password', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ current_password: current, new_password: next }),
+    });
+    if (!result.res.ok || !result.data.ok) return fail(result.data.message || 'Passwort konnte nicht geändert werden.');
+    if (result.data.accessToken) {
+      authToken = result.data.accessToken;
+      try { localStorage.setItem('tawano_access_token', authToken); } catch (_) { /* Sitzung bleibt im Speicher */ }
+    }
+    closePasswordDialog();
+    toast('Passwort geändert');
+  } catch (error) {
+    fail(error.message || 'Passwort konnte nicht geändert werden.');
+  } finally {
+    buttons.forEach((b) => { b.disabled = false; });
+  }
+}

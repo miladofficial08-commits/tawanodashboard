@@ -34,6 +34,7 @@ const STATIC_PAGES = {
 // ── Routen aus netlify.toml, 1:1 uebernommen ───────────────────────────────
 const API_ROUTES = {
   '/api/client-auth/login': 'client-auth-login',
+  '/api/client-auth/password': 'client-auth-password',
   '/api/debug/calls': 'debug-calls',
   '/api/debug/reset': 'debug-reset',
   '/api/call': 'start-call',
