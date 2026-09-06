@@ -21,8 +21,9 @@ app.use('/public', express.static(path.join(__dirname, 'public'), { dotfiles: 'd
 // Retell-, seven.io- und SMTP-Zugangsdaten) sowie den Function-Quellcode. Ein Verzeichnis-
 // Mount wuerde all das oeffentlich ausliefern.
 const STATIC_PAGES = {
-  '/': 'index.html',
-  '/Dashboardkunde.html': 'Dashboardkunde.html',
+  // Das Kunden-Dashboard liegt auf der Wurzel: app.tawano.de statt
+  // app.tawano.de/Dashboardkunde.html. Die alte Adresse leitet weiter (siehe unten).
+  '/': 'Dashboardkunde.html',
   '/admin': 'admin.html',
   '/admin.html': 'admin.html',
   '/feedback': 'feedback.html',
@@ -153,7 +154,14 @@ for (const [route, file] of Object.entries(STATIC_PAGES)) {
 }
 
 // Kurzadresse fuer das Beispiel-Dashboard (Vertrieb): /demo statt der langen URL.
-app.get('/demo', (_req, res) => res.redirect(302, '/Dashboardkunde.html?demo=1'));
+app.get('/demo', (_req, res) => res.redirect(302, '/?demo=1'));
+
+// Alte Adresse bleibt gueltig (Lesezeichen, verschickte Links) - fuehrt aber auf
+// die saubere Wurzel-URL. Query bleibt erhalten, die Raute liefert der Browser mit.
+app.get('/Dashboardkunde.html', (req, res) => {
+  const query = req.originalUrl.split('?')[1];
+  res.redirect(302, '/' + (query ? '?' + query : ''));
+});
 
 app.use((_req, res) => res.status(404).send('Nicht gefunden'));
 

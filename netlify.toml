@@ -124,8 +124,15 @@ force = true
 
 [[redirects]]
 from = "/demo"
-to = "/Dashboardkunde.html?demo=1"
+to = "/?demo=1"
 status = 302
+force = true
+
+# Wurzel zeigt direkt das Dashboard (gleiche URL, kein Dateiname sichtbar).
+[[redirects]]
+from = "/"
+to = "/Dashboardkunde.html"
+status = 200
 force = true
 
 [[redirects]]

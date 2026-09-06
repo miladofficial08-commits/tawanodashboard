@@ -175,7 +175,7 @@ async function testSms(btn) {
 }
 
 async function openDashboard(btn) {
-  if (adminPreview) { window.open('/Dashboardkunde.html?preview=1','_blank'); return; }
+  if (adminPreview) { window.open('/?preview=1','_blank'); return; }
   const card=btn.closest('.cust'), id=card.getAttribute('data-id');
   const msg=card.querySelector('.cmsg'); msg.className='cmsg'; msg.textContent='Session wird erstellt...';
   const dashboardTab = window.open('about:blank', '_blank');
@@ -184,7 +184,7 @@ async function openDashboard(btn) {
   try {
     const d=await api('/api/admin/impersonate',{tenant_id:id});
     // Token nur ueber die URL (pro Tab) - kein gemeinsamer Speicher -> keine Datenvermischung.
-    const u='/Dashboardkunde.html#admin_token='+encodeURIComponent(d.accessToken)+'&admin_email='+encodeURIComponent((d.user&&d.user.email)||'');
+    const u='/#admin_token='+encodeURIComponent(d.accessToken)+'&admin_email='+encodeURIComponent((d.user&&d.user.email)||'');
     dashboardTab.location.replace(u);
     msg.className='cmsg ok'; msg.textContent='Dashboard in neuem Tab geoeffnet.';
   } catch(e){ dashboardTab.close(); msg.className='cmsg err'; msg.textContent='Fehler: '+(e.message||e); }
@@ -238,7 +238,7 @@ async function resetCustomerUsage(btn,mode) {
 
 // Link zum Beispiel-Dashboard in die Zwischenablage - zum Verschicken vor einem Termin.
 function copyDemoLink(button) {
-  const url = location.origin + '/Dashboardkunde.html?demo=1';
+  const url = location.origin + '/demo';
   const done = () => { const old = button.textContent; button.textContent = 'Link kopiert'; setTimeout(() => { button.textContent = old; }, 2000); };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done).catch(() => window.prompt('Link kopieren:', url));
   else window.prompt('Link kopieren:', url);

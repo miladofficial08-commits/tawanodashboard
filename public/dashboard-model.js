@@ -350,7 +350,7 @@ async function loginWithPassword() {
 }
 
 function logout() {
-  if (previewMode) { location.href = '/Dashboardkunde.html'; return; }
+  if (previewMode) { location.href = '/'; return; }
   authToken = '';
   currentUser = null;
   calls = [];
