@@ -1,0 +1,19 @@
+const assert = require('node:assert/strict');
+const tenant = require('../netlify/functions/_lib/tenant');
+let write;
+tenant.envValue = ()=>'admin-test';
+tenant.getTenantById = async id=>id==='own'?{id}:null;
+tenant.patchRows = async (table,query,patch)=>{write={query,patch};return [patch];};
+const api = require('../netlify/functions/admin-reset-usage');
+const event = body=>({httpMethod:'POST',headers:{},body:JSON.stringify(body)});
+(async()=>{
+ assert.equal((await api.handler(event({tenant_id:'own',mode:'minutes'}))).statusCode,401);
+ assert.equal((await api.handler(event({admin_secret:'admin-test',tenant_id:'absent',mode:'minutes'}))).statusCode,404);
+ assert.equal((await api.handler(event({admin_secret:'admin-test',tenant_id:'own',mode:'bad'}))).statusCode,400);
+ assert.equal((await api.handler(event({admin_secret:'admin-test',tenant_id:'own',mode:'minutes'}))).statusCode,200);
+ assert.ok(write.patch.minutes_reset_at); assert.equal(write.patch.go_live_at,undefined);
+ assert.equal((await api.handler(event({admin_secret:'admin-test',tenant_id:'own',mode:'conversations'}))).statusCode,200);
+ assert.ok(write.patch.go_live_at); assert.equal(write.patch.minutes_reset_at,undefined);
+ assert.equal(write.query.id,'eq.own');
+ console.log('Independent, admin-only resets passed');
+})().catch(e=>{console.error(e);process.exitCode=1;});

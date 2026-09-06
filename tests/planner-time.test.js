@@ -1,0 +1,18 @@
+const assert = require('node:assert/strict');
+const t = require('../public/planner-time');
+const base = '2026-09-06T13:00:00Z';
+assert.equal(t.dateKey(base), '2026-09-06');
+assert.equal(t.parse('Rückruf morgen um 16 Uhr.', base).iso, '2026-09-07T14:00:00.000Z');
+assert.equal(t.parse('Rückruf heute zwischen 16 und 18 Uhr.', base).end, '18:00');
+assert.equal(t.parse('Rückruf am Montag um 9:15 Uhr.', base).day, '2026-09-07');
+assert.equal(t.parse('Heizung seit 16 Uhr defekt. Bitte zurückrufen.', base).iso, null);
+assert.equal(t.parse('Rückruf um 16 Uhr.', base).iso, null, 'no invented date');
+assert.equal(t.parse('Rückruf morgen am Nachmittag.', base).day, '2026-09-07');
+assert.equal(t.parse('Rückruf morgen um 26 Uhr.', base).iso, null);
+assert.equal(t.parse('Rückruf morgen um 9 Uhr.', '2026-12-31T10:00:00Z').day, '2027-01-01');
+assert.equal(t.fromLocal('2026-03-29', '02:30'), null, 'DST nonexistent hour');
+assert.equal(t.fromLocal('2026-10-25', '02:30'), null, 'DST ambiguous hour needs clarification');
+assert.equal(t.fromLocal('2026-02-30', '12:00'), null);
+assert.equal(t.inRange(base, '2026-09-06', '2026-09-06'), true);
+assert.equal(t.inRange('2026-09-06T22:00:00Z', '2026-09-06', '2026-09-06'), false);
+console.log('Planner time and Berlin boundaries passed');

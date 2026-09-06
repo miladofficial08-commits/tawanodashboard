@@ -2,6 +2,26 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { insertRow, isMissingSchemaError, json, readBody, resolveTenantFromToolBody, envValue } = require('./_lib/tenant');
 const { isAuthorizedToolRequest } = require('./_lib/retell-auth');
+const plannerTime = require('../../public/planner-time');
+
+// Strukturierte Rueckrufzeit direkt aus dem Gespraech: der Telefonassistent kann
+// callback_at ("2026-09-08T16:00:00+02:00") oder callback_date + callback_time
+// mitschicken. Geprueft wird mit derselben Regel wie im Dashboard (Europe/Berlin);
+// Unklares bleibt leer, statt eine Zeit zu erfinden.
+function structuredCallbackTime(body) {
+  const schedule = plannerTime.fromStructured({
+    at: body.callback_at || body.callbackAt || '',
+    date: body.callback_date || body.callbackDate || '',
+    time: body.callback_time || body.callbackTime || '',
+    end: body.callback_end || body.callbackEnd || '',
+  }, new Date().toISOString());
+  if (!schedule || !schedule.iso) return { at: null, end: null };
+  return { at: schedule.iso, end: schedule.end ? plannerTime.fromLocal(schedule.day, schedule.end) : null };
+}
+
+function isMissingColumnError(error) {
+  return Boolean(error && error.data && (error.data.code === 'PGRST204' || error.data.code === '42703'));
+}
 
 function appendLocalCallback(item) {
   const filePath = path.join(process.cwd(), '.callbacks.json');
@@ -69,6 +89,9 @@ exports.handler = async (event) => {
     notes: String(body.notes || '').trim() || null,
     status: 'open',
   };
+  const callbackTime = structuredCallbackTime(body);
+  callbackItem.callback_at = callbackTime.at;
+  callbackItem.callback_end = callbackTime.end;
 
   // If notes are empty, try to enrich from webhook body fields (call_summary, call_analysis, transcript)
   try {
@@ -169,18 +192,27 @@ exports.handler = async (event) => {
   }
 
   try {
+    const row = {
+      tenant_id: tenant.id,
+      call_id: callbackItem.call_id,
+      phone_number: callbackItem.phone_number,
+      customer_name: callbackItem.customer_name,
+      reason: callbackItem.reason,
+      source: callbackItem.source,
+      priority: callbackItem.priority,
+      notes: callbackItem.notes,
+      status: callbackItem.status,
+    };
+    const timed = Object.assign({}, row, { callback_at: callbackItem.callback_at, callback_end: callbackItem.callback_end });
     try {
-      await insertRow('callback_requests', {
-        tenant_id: tenant.id,
-        call_id: callbackItem.call_id,
-        phone_number: callbackItem.phone_number,
-        customer_name: callbackItem.customer_name,
-        reason: callbackItem.reason,
-        source: callbackItem.source,
-        priority: callbackItem.priority,
-        notes: callbackItem.notes,
-        status: callbackItem.status,
-      }, { serviceRole: true });
+      try {
+        await insertRow('callback_requests', timed, { serviceRole: true });
+      } catch (error) {
+        // Ohne supabase/call-history.sql fehlen die Zeitspalten - der Rueckruf
+        // selbst darf daran nicht scheitern.
+        if (!isMissingColumnError(error)) throw error;
+        await insertRow('callback_requests', row, { serviceRole: true });
+      }
     } catch (error) {
       if (!isMissingSchemaError(error)) throw error;
       appendLocalCallback(callbackItem);

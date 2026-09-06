@@ -20,6 +20,7 @@ exports.handler = async (event) => {
   // ── ElevenLabs-Kunden: Gespraech direkt aus ElevenLabs holen ───────────────
   if (tenantProvider(tenantContext.tenant) === 'elevenlabs') {
     const elAgentId = tenantAgentId(tenantContext.tenant);
+    if (!elAgentId) return json(403, { ok: false, message: 'Kein Agent zugeordnet.' });
     if (!envValue('ELEVENLABS_API_KEY').trim()) return json(500, { ok: false, message: 'ELEVENLABS_API_KEY fehlt' });
     let detail;
     try {
@@ -36,6 +37,7 @@ exports.handler = async (event) => {
   }
 
   const tenantAgent = String((tenantContext.tenant && tenantContext.tenant.retell_agent_id) || '').trim();
+  if (!tenantAgent) return json(403, { ok: false, message: 'Kein Agent zugeordnet.' });
 
   const apiKey = envValue('RETELL_API_KEY').trim();
   if (!apiKey) return json(500, { ok: false, message: 'RETELL_API_KEY fehlt' });

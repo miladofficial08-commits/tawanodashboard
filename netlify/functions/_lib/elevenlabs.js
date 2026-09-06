@@ -9,6 +9,7 @@
 // selbst. Ein zentraler Platform-Key (ELEVENLABS_API_KEY) deckt alle Agents ab.
 
 const { envValue } = require('./tenant');
+const { callbackFields } = require('./callback-fields');
 
 const API_BASE = 'https://api.elevenlabs.io/v1/convai';
 
@@ -90,6 +91,13 @@ function mapSentiment(analysis) {
   return null;
 }
 
+// Strukturierte Rueckrufzeit: ElevenLabs legt die im Agent definierten Datenfelder
+// unter analysis.data_collection_results ab (Map oder Liste).
+function callbackFromAnalysis(analysis) {
+  const a = analysis && typeof analysis === 'object' ? analysis : {};
+  return callbackFields(a.data_collection_results, a.data_collection_results_list);
+}
+
 // Ein Listen-Eintrag -> Dashboard-Call (gleiche Felder wie debug-calls.js mapCall).
 //
 // Die Listen-Antwort von ElevenLabs enthaelt KEINEN metadata-Block (anders als die
@@ -107,6 +115,7 @@ function mapListItem(item) {
   const direction = phone.direction || (String(item.direction || '').toLowerCase() || null);
   const reason = mapTerminationReason(item.termination_reason);
   const sentiment = mapSentiment(item);
+  const callback = callbackFromAnalysis(item.analysis);
   return {
     id: conversationId,
     call_id: conversationId,
@@ -130,62 +139,79 @@ function mapListItem(item) {
     call_analysis: { call_summary: summary, call_successful: successful, user_sentiment: sentiment },
     summary,
     sentiment,
+    callback,
     createdAt,
     updatedAt: unixSecsToIso(Number(item.start_time_unix_secs || 0) + Number(item.call_duration_secs || 0)),
     provider: 'elevenlabs',
   };
 }
 
-// Alle (bis Limit) Gespraeche eines Agents holen, neueste zuerst.
-async function listConversations(agentId, options) {
+// Eine Seite Gespraeche eines Agents, neueste zuerst.
+// `beforeMs` springt direkt zu aelteren Gespraechen - damit kann die Nacharbeit einer
+// Luecke die bereits gespeicherten Seiten ueberspringen, statt sie erneut zu lesen.
+async function listConversationsPage(agentId, options) {
   const key = apiKey();
-  if (!key || !agentId) return [];
+  if (!key || !agentId) return { calls: [], cursor: '', supportsBefore: true };
   const opts = options || {};
-  const limit = Number(opts.limit || 120);
-  const pageSize = 100;
-  const collected = [];
-  let cursor = '';
+  const params = new URLSearchParams();
+  params.set('agent_id', agentId);
+  params.set('page_size', String(Math.min(100, Math.max(1, Number(opts.pageSize) || 100))));
+  if (opts.cursor) params.set('cursor', String(opts.cursor));
+  if (Number(opts.beforeMs) > 0) params.set('call_start_before_unix', String(Math.floor(Number(opts.beforeMs) / 1000)));
 
-  for (let page = 0; page < 5 && collected.length < limit; page += 1) {
-    const params = new URLSearchParams();
-    params.set('agent_id', agentId);
-    params.set('page_size', String(pageSize));
-    if (cursor) params.set('cursor', cursor);
+  const response = await fetchWithTimeout(API_BASE + '/conversations?' + params.toString(), {
+    method: 'GET',
+    headers: { 'xi-api-key': key },
+  }, 10000);
 
-    const response = await fetchWithTimeout(API_BASE + '/conversations?' + params.toString(), {
-      method: 'GET',
-      headers: { 'xi-api-key': key },
-    }, 10000);
-
-    if (!response.ok) {
-      if (collected.length) break; // Teilergebnis lieber als Absturz.
-      const text = await response.text().catch(() => '');
-      const error = new Error('ElevenLabs list-conversations fehlgeschlagen (' + response.status + '): ' + text.slice(0, 300));
-      error.status = response.status;
-      throw error;
-    }
-
-    const data = await response.json().catch(() => ({}));
-    const items = Array.isArray(data.conversations) ? data.conversations : [];
-    for (const item of items) collected.push(item);
-
-    if (!data.has_more || !data.next_cursor) break;
-    cursor = data.next_cursor;
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    const error = new Error('ElevenLabs list-conversations fehlgeschlagen (' + response.status + '): ' + text.slice(0, 300));
+    error.status = response.status;
+    throw error;
   }
 
-  return collected.slice(0, limit).map(mapListItem);
+  const data = await response.json().catch(() => ({}));
+  const items = Array.isArray(data.conversations) ? data.conversations : [];
+  return {
+    calls: items.filter((item) => String(item.agent_id || '') === agentId).map(mapListItem),
+    cursor: data.has_more && data.next_cursor ? String(data.next_cursor) : '',
+    supportsBefore: true,
+  };
+}
+
+// Bis zu `limit` Gespraeche eines Agents (fuer Statistiken; das Dashboard blaettert
+// ueber _lib/call-history.js selbst).
+async function listConversations(agentId, options) {
+  const opts = options || {};
+  const limit = Number(opts.limit || 120);
+  const collected = [];
+  let cursor = '';
+  for (let page = 0; page < 5 && collected.length < limit; page += 1) {
+    let result;
+    try {
+      result = await listConversationsPage(agentId, { cursor });
+    } catch (error) {
+      if (collected.length) break; // Teilergebnis lieber als Absturz.
+      throw error;
+    }
+    collected.push(...result.calls);
+    if (!result.cursor) break;
+    cursor = result.cursor;
+  }
+  return collected.slice(0, limit);
 }
 
 // Ein Gespraech im Detail (Transkript + Zusammenfassung) -> gleiche Felder wie
 // get-call-detail.js sie fuer Retell liefert.
-async function getConversation(conversationId) {
+async function getConversation(conversationId, timeoutMs = 10000) {
   const key = apiKey();
   if (!key || !conversationId) return null;
 
   const response = await fetchWithTimeout(
     API_BASE + '/conversations/' + encodeURIComponent(conversationId),
     { method: 'GET', headers: { 'xi-api-key': key } },
-    10000,
+    timeoutMs,
   );
   if (!response.ok) {
     const error = new Error('ElevenLabs get-conversation fehlgeschlagen (' + response.status + ')');
@@ -226,15 +252,17 @@ async function getConversation(conversationId) {
       summary: String(analysis.transcript_summary || analysis.call_summary_title || '').trim(),
       user_sentiment: mapSentiment(analysis),
       call_successful: callSuccessfulToBool(analysis.call_successful),
+      callback: callbackFromAnalysis(analysis),
       in_voicemail: false,
     },
   };
 }
 
 // Leichte Statistik fuer die Admin-Kundenliste (Anzahl + letzter Anruf).
+const STATS_LIMIT = 120; // Admin-Kundenliste: nur eine schnelle Uebersicht, kein Journal.
 async function agentStats(agentId) {
   try {
-    const calls = await listConversations(agentId, { limit: 120 });
+    const calls = await listConversations(agentId, { limit: STATS_LIMIT });
     let connected = 0;
     let minutes = 0;
     calls.forEach((c) => {
@@ -248,15 +276,40 @@ async function agentStats(agentId) {
       minutes,
       billedMinutes: Math.ceil(minutes),
       retellCost: 0,
-      capped: false,
+      capped: calls.length >= STATS_LIMIT,
     };
   } catch (_) {
     return { calls: 0, connectedCalls: 0, lastAt: null, minutes: 0, billedMinutes: 0, retellCost: 0, capped: false };
   }
 }
 
+const detailCache = new Map();
+async function enrichConversations(agentId, calls) {
+  const enriched = calls.slice();
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(6, calls.length) }, async () => {
+    while (next < Math.min(12, calls.length)) {
+      const index = next++;
+      const call = calls[index];
+      const key = agentId + ':' + call.call_id;
+      try {
+        const cached = detailCache.get(key);
+        const detail = cached && cached.expires > Date.now() ? cached.detail : await getConversation(call.call_id, 2500);
+        if (!detail || detail.agent_id !== agentId) { enriched[index] = null; continue; }
+        if (detailCache.size > 1000) detailCache.clear();
+        detailCache.set(key, { detail, expires: Date.now() + 60000 });
+        const c = detail.call;
+        enriched[index] = Object.assign({}, call, { phoneNumber:c.from_number, from_number:c.from_number, to_number:c.to_number, direction:c.direction, summary:c.summary || call.summary, callback:c.callback || call.callback || null, call_analysis:{call_summary:c.summary || call.summary,call_successful:c.call_successful,user_sentiment:c.user_sentiment} });
+      } catch (_) { enriched[index] = Object.assign({}, call, { detail_unavailable:true }); }
+    }
+  }));
+  return enriched.filter(Boolean);
+}
+
 module.exports = {
+  enrichConversations,
   listConversations,
+  listConversationsPage,
   getConversation,
   agentStats,
 };

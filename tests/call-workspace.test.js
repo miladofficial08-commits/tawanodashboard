@@ -1,0 +1,23 @@
+const assert = require('node:assert/strict');
+const tenant = require('../netlify/functions/_lib/tenant');
+let queried, patched;
+tenant.resolveTenantContextFromAccessToken = async () => ({tenant:{id:'own',provider:'retell',retell_agent_id:'agent-a'}});
+tenant.listRows = async (table, query) => { queried=query; return query.call_id === 'eq.foreign' ? [] : [{call_id:'mine',state:'open'}]; };
+tenant.patchRows = async (table, query, patch) => { patched={query,patch}; return [{...patch,call_id:'mine'}]; };
+const api = require('../netlify/functions/call-workspace');
+const event = body => ({httpMethod:'POST',headers:{authorization:'Bearer test'},body:JSON.stringify(body)});
+(async () => {
+  assert.equal((await api.handler({httpMethod:'POST',headers:{}})).statusCode,401);
+  assert.equal((await api.handler(event({call_id:'foreign',state:'done',tenant_id:'other'}))).statusCode,404);
+  assert.equal((await api.handler(event({call_id:'mine',state:'unknown'}))).statusCode,400);
+  assert.equal((await api.handler(event({call_id:'mine',scheduled_at:'tomorrow'}))).statusCode,400);
+  assert.equal((await api.handler(event({call_id:'mine',notes:'a'.repeat(5001)}))).statusCode,400);
+  assert.equal((await api.handler(event({call_id:'mine',state:'done',notes:'Kunde erreicht',tenant_id:'other'}))).statusCode,200);
+  assert.equal(queried.tenant_id,'eq.own');
+  assert.equal(patched.query.tenant_id,'eq.own');
+  assert.equal(patched.query.agent_id,'eq.agent-a');
+  assert.equal(patched.patch.notes,'Kunde erreicht');
+  assert.equal((await api.handler(event({call_id:'mine',state:'deleted'}))).statusCode,200);
+  assert.deepEqual(patched.patch.snapshot,{});
+  console.log('Workspace authorization, validation and deletion passed');
+})().catch(e=>{console.error(e);process.exitCode=1;});

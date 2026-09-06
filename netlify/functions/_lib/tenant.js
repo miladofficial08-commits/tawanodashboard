@@ -282,12 +282,14 @@ async function getTenantSettings(tenantId, options) {
       limit: 1,
     }, options || {});
     return (rows[0] && rows[0].payload) || {};
-  } catch (_) {
+  } catch (error) {
+    if (options && options.strict) throw error;
     return {};
   }
 }
 async function saveTenantSettings(tenantId, patch, options) {
-  const current = await getTenantSettings(tenantId, options);
+  const rows = await listRows('analytics_snapshots', {select:'payload',tenant_id:'eq.'+tenantId,snapshot_type:'eq.tenant_settings',order:'created_at.desc',limit:1},options || {});
+  const current = rows[0]?.payload || {};
   const merged = Object.assign({}, current, patch);
   await insertRow('analytics_snapshots', {
     tenant_id: tenantId,
@@ -307,18 +309,14 @@ async function resolveTenantContextFromAccessToken(accessToken) {
     }, { accessToken });
 
     if (!memberships.length) {
-      return {
-        accessToken,
-        user,
-        tenant: fallbackTenantFromEnv({ email: user.email }),
-        membership: null,
-        roles: [],
-        source: 'env-fallback',
-      };
+      throw Object.assign(new Error('Kein Kundenkonto zugeordnet. Bitte den Administrator kontaktieren.'), { status: 403 });
     }
 
     const membership = memberships[0];
     const tenant = await getTenantById(membership.tenant_id, { accessToken });
+    if (!tenant || tenant.is_active === false) {
+      throw Object.assign(new Error('Kundenkonto nicht vorhanden oder deaktiviert.'), { status: 403 });
+    }
     return {
       accessToken,
       user,
@@ -329,14 +327,7 @@ async function resolveTenantContextFromAccessToken(accessToken) {
     };
   } catch (error) {
     if (isMissingSchemaError(error)) {
-      return {
-        accessToken,
-        user,
-        tenant: fallbackTenantFromEnv({ email: user.email }),
-        membership: null,
-        roles: [],
-        source: 'env-fallback',
-      };
+      throw Object.assign(new Error('Kundenverwaltung ist noch nicht eingerichtet.'), { status: 503 });
     }
     throw error;
   }
@@ -457,6 +448,7 @@ function bearerTokenFromEvent(event) {
 }
 
 module.exports = {
+  supabaseRequest,
   bearerTokenFromEvent,
   envValue,
   fallbackTenantFromEnv,

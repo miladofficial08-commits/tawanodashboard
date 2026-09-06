@@ -1,4 +1,4 @@
-const { envValue, listRows, json, readBody } = require('./_lib/tenant');
+const { envValue, listRows, json, readBody, resolveTenantContextFromAccessToken } = require('./_lib/tenant');
 
 function checkAdmin(event, body) {
   const adminSecret = envValue('ADMIN_SECRET').trim();
@@ -58,6 +58,8 @@ exports.handler = async (event) => {
     const ver = await verRes.json().catch(() => ({}));
     const accessToken = ver.access_token;
     if (!accessToken) return json(502, { ok: false, message: 'Login-Token konnte nicht erzeugt werden.', detail: JSON.stringify(ver).slice(0, 200) });
+    const context = await resolveTenantContextFromAccessToken(accessToken);
+    if (context.tenant.id !== tenantId) return json(409, { ok: false, message: 'Dieser Zugang hat einen anderen Standardkunden. Bitte die Mitgliedschaft in Supabase korrigieren.' });
 
     return json(200, { ok: true, accessToken, user: { email, id: (ver.user && ver.user.id) || null } });
   } catch (e) {

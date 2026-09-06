@@ -11,3 +11,7 @@ tests
 docs
 scripts
 .agents
+.claude
+.callbacks.json
+.dashboard-reset.json
+supabase/.temp

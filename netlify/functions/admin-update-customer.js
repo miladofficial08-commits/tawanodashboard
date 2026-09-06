@@ -1,4 +1,6 @@
 const { envValue, patchRows, json, readBody, saveTenantSettings } = require('./_lib/tenant');
+const { getTenantById, tenantProvider, tenantAgentId } = require('./_lib/tenant');
+const { validateAssignment } = require('./_lib/agent-assignment');
 
 function checkAdmin(event, body) {
   const adminSecret = envValue('ADMIN_SECRET').trim();
@@ -13,6 +15,14 @@ exports.handler = async (event) => {
 
   const tenantId = String(body.tenant_id || '').trim();
   if (!tenantId) return json(400, { ok: false, message: 'tenant_id fehlt.' });
+  try {
+    const current = await getTenantById(tenantId, { serviceRole: true });
+    if (!current) return json(404, { ok: false, message: 'Kunde nicht gefunden.' });
+    const next = Object.assign({}, current, body);
+    const provider = String(next.provider || 'retell').trim().toLowerCase();
+    const agentId = String(provider === 'elevenlabs' ? next.elevenlabs_agent_id || '' : next.retell_agent_id || '').trim();
+    if (provider !== tenantProvider(current) || agentId !== tenantAgentId(current)) await validateAssignment(provider, agentId, tenantId);
+  } catch (error) { return json(error.status || 502, { ok: false, message: error.message }); }
 
   // 1) Echte Tenant-Spalten (Name, Agent, Nummer, Buchungslink, SMS-Absender) direkt aktualisieren.
   const patch = {};
@@ -29,7 +39,10 @@ exports.handler = async (event) => {
 
   // 2) Einstellungen (Minuten, SMS) als Snapshot speichern - kein DB-Umbau noetig.
   const settings = {};
-  if (body.minutes_budget !== undefined) settings.minutes_budget = Number(body.minutes_budget) || 0;
+  if (body.minutes_budget !== undefined) {
+    if (!Number.isFinite(Number(body.minutes_budget)) || Number(body.minutes_budget)<0 || Number(body.minutes_budget)>1000000) return json(400,{ok:false,message:'Bitte ein Minutenbudget zwischen 0 und 1.000.000 eingeben.'});
+    settings.minutes_budget = Number(body.minutes_budget);
+  }
   if (body.sms_enabled !== undefined) settings.sms_enabled = Boolean(body.sms_enabled);
   if (body.sms_template !== undefined) settings.sms_template = String(body.sms_template);
   if (body.detailed_analysis !== undefined) settings.detailed_analysis = Boolean(body.detailed_analysis);

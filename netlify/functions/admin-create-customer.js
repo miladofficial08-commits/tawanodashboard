@@ -1,4 +1,6 @@
 const { envValue, insertRow, json, readBody } = require('./_lib/tenant');
+const { randomUUID } = require('node:crypto');
+const { validateAssignment } = require('./_lib/agent-assignment');
 
 function slugify(s) {
   return String(s || '')
@@ -27,7 +29,7 @@ exports.handler = async (event) => {
   const name = String(body.name || '').trim();
   const agentId = String(body.agent_id || body.agentId || '').trim();
   const providerRaw = String(body.provider || 'retell').trim().toLowerCase();
-  const provider = providerRaw === 'elevenlabs' ? 'elevenlabs' : 'retell';
+  const provider = providerRaw;
   const fromNumber = String(body.from_number || body.phone_number || '').trim();
   const bookingLink = String(body.booking_link || '').trim();
   if (!email || !password || !name || !agentId) {
@@ -36,6 +38,10 @@ exports.handler = async (event) => {
   if (password.length < 8) {
     return json(400, { ok: false, message: 'Passwort muss mindestens 8 Zeichen haben.' });
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { ok: false, message: 'Bitte eine gültige E-Mail eingeben.' });
+  if (fromNumber && !/^\+[1-9]\d{6,14}$/.test(fromNumber)) return json(400, { ok: false, message: 'Telefonnummer im internationalen Format eingeben, z. B. +49301234567.' });
+  try { await validateAssignment(provider, agentId); }
+  catch (error) { return json(error.status || 502, { ok: false, message: error.message }); }
 
   const url = envValue('SUPABASE_URL').replace(/\/$/, '');
   const serviceKey = envValue('SUPABASE_SERVICE_ROLE_KEY').trim();
@@ -62,8 +68,17 @@ exports.handler = async (event) => {
   }
 
   // 2) Tenant (Kunde) mit seinem Voice Agent anlegen.
-  const tenantId = 'tenant_' + (slugify(name) || String(Date.now()));
-  const slug = slugify(name) || tenantId;
+  const suffix = randomUUID();
+  const tenantId = 'tenant_' + suffix;
+  const slug = (slugify(name) || 'betrieb') + '-' + suffix;
+  async function rollback(includeTenant) {
+    const headers = { apikey: serviceKey, Authorization: 'Bearer ' + serviceKey };
+    const paths = includeTenant ? ['/rest/v1/tenants?id=eq.' + tenantId, '/auth/v1/admin/users/' + userId] : ['/auth/v1/admin/users/' + userId];
+    for (const resource of paths) {
+      const response = await fetch(url + resource, { method: 'DELETE', headers, signal: AbortSignal.timeout(10000) });
+      if (!response.ok) throw new Error('Bereinigung fehlgeschlagen. Administrator muss Konto ' + userId + ' / ' + tenantId + ' prüfen.');
+    }
+  }
   try {
     await insertRow('tenants', {
       id: tenantId,
@@ -74,11 +89,12 @@ exports.handler = async (event) => {
       // Agent-ID landet je nach Provider in der passenden Spalte, die andere bleibt leer.
       retell_agent_id: provider === 'retell' ? agentId : null,
       elevenlabs_agent_id: provider === 'elevenlabs' ? agentId : null,
-      retell_agent_alias: provider === 'retell' ? 'beautyworlds-demo' : null,
+      retell_agent_alias: null,
       retell_from_number: fromNumber || null,
       booking_link_url: bookingLink || null,
     }, { serviceRole: true });
   } catch (e) {
+    try { await rollback(false); } catch (cleanup) { return json(500, { ok: false, message: cleanup.message }); }
     return json(500, { ok: false, message: 'Tenant konnte nicht angelegt werden (evtl. Name schon vergeben?): ' + String(e && e.message ? e.message : e), user_id: userId });
   }
 
@@ -91,6 +107,7 @@ exports.handler = async (event) => {
       is_default: true,
     }, { serviceRole: true });
   } catch (e) {
+    try { await rollback(true); } catch (cleanup) { return json(500, { ok: false, message: cleanup.message }); }
     return json(500, { ok: false, message: 'Verknuepfung fehlgeschlagen: ' + String(e && e.message ? e.message : e), tenant_id: tenantId, user_id: userId });
   }
 

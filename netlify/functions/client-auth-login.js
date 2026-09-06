@@ -42,8 +42,8 @@ exports.handler = async (event) => {
     let tenantContext = null;
     try {
       tenantContext = await resolveTenantContextFromAccessToken(data.access_token);
-    } catch (_) {
-      tenantContext = null;
+    } catch (error) {
+      return json(error.status || 403, { ok: false, message: error.message || 'Kein Kundenkonto zugeordnet.' });
     }
 
     const tenant = tenantContext && tenantContext.tenant ? tenantContext.tenant : null;

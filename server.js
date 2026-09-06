@@ -14,6 +14,7 @@ const { sendAlert } = require('./netlify/functions/_lib/alert');
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
 const FUNCTIONS_DIR = path.join(__dirname, 'netlify', 'functions');
+app.use('/public', express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
 // ── Statische Seiten: bewusst als ALLOWLIST ────────────────────────────────
 // Kein express.static(__dirname)! Das Projekt-Root enthaelt .env (Supabase-Service-Role-Key,
@@ -46,6 +47,7 @@ const API_ROUTES = {
   '/api/retell-inbound': 'retell-inbound',
   '/api/retell-call-events': 'retell-call-events',
   '/api/call-detail': 'get-call-detail',
+  '/api/call-workspace': 'call-workspace',
   '/api/feedback': 'submit-feedback',
   '/api/feedback-list': 'feedback-list',
   '/api/tavano-lead': 'tavano-lead',
@@ -54,6 +56,7 @@ const API_ROUTES = {
   '/api/admin/create-customer': 'admin-create-customer',
   '/api/admin/list-customers': 'admin-list-customers',
   '/api/admin/update-customer': 'admin-update-customer',
+  '/api/admin/reset-usage': 'admin-reset-usage',
   '/api/admin/impersonate': 'admin-impersonate',
   '/api/admin/delete-customer': 'admin-delete-customer',
   '/api/admin/cost-numbers': 'admin-cost-numbers',

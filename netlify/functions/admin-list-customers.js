@@ -57,9 +57,10 @@ exports.handler = async (event) => {
   const body = readBody(event) || {};
   if (!checkAdmin(event, body)) return json(401, { ok: false, message: 'Nicht autorisiert.' });
 
-  let tenants;
+  let tenants, memberships;
   try {
     tenants = await listRows('tenants', { select: '*', order: 'created_at.asc' }, { serviceRole: true });
+    memberships = await listRows('tenant_memberships', { select: 'tenant_id' }, { serviceRole: true });
   } catch (e) {
     return json(500, { ok: false, message: 'Kunden konnten nicht geladen werden: ' + String(e && e.message ? e.message : e) });
   }
@@ -73,7 +74,7 @@ exports.handler = async (event) => {
       : retellStats(t.retell_agent_id, apiKey);
     const [stats, settings] = await Promise.all([
       statsPromise,
-      getTenantSettings(t.id, { serviceRole: true }),
+      getTenantSettings(t.id, { serviceRole: true, strict:true }),
     ]);
     // Tatsaechlich aktive SMS-Nachricht = ausschliesslich die in Supabase gespeicherte Vorlage.
     // Kein hartcodierter Standard mehr: leer bedeutet "nicht gesetzt" (dann wird auch nicht gesendet).
@@ -92,6 +93,7 @@ exports.handler = async (event) => {
       name: t.name,
       slug: t.slug,
       is_active: t.is_active,
+      login_linked: memberships.some(m => m.tenant_id === t.id),
       provider: provider,
       retell_agent_id: t.retell_agent_id || '',
       elevenlabs_agent_id: t.elevenlabs_agent_id || '',
@@ -99,6 +101,8 @@ exports.handler = async (event) => {
       booking_link_url: t.booking_link_url || '',
       sms_sender: t.sms_sender || '',
       minutes_budget: Number(settings.minutes_budget) || 0,
+      minutes_reset_at: t.minutes_reset_at || null,
+      go_live_at: t.go_live_at || null,
       sms_enabled: settings.sms_enabled !== false,
       detailed_analysis: Boolean(settings.detailed_analysis),
       append_lead_params: Boolean(settings.append_lead_params),

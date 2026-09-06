@@ -172,3 +172,11 @@ force = true
 from = "/admin"
 to = "/admin.html"
 status = 200
+[[redirects]]
+  from = "/api/call-workspace"
+  to = "/.netlify/functions/call-workspace"
+  status = 200
+[[redirects]]
+  from = "/api/admin/reset-usage"
+  to = "/.netlify/functions/admin-reset-usage"
+  status = 200

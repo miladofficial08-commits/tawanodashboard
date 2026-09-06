@@ -1,7 +1,10 @@
-const fs = require('node:fs');
-const path = require('node:path');
 const { bearerTokenFromEvent, envValue, json, listRows, resolveTenantContextFromAccessToken, getTenantSettings, tenantProvider, tenantAgentId } = require('./_lib/tenant');
 const elevenlabs = require('./_lib/elevenlabs');
+const {syncCalls} = require('./_lib/call-workspace');
+const {loadHistoryState, saveHistoryState, collectHistory} = require('./_lib/call-history');
+const {callbackFields} = require('./_lib/callback-fields');
+
+const RETELL_PAGE_SIZE = 500;
 
 function toIsoFromMs(ms) {
   const num = Number(ms || 0);
@@ -10,22 +13,7 @@ function toIsoFromMs(ms) {
 }
 
 function cutoffMsFromTenant(tenant) {
-  let chosen = String((tenant && tenant.go_live_at) || '').trim();
-  if (!chosen) {
-    try {
-      const statePath = path.join(process.cwd(), '.dashboard-reset.json');
-      if (fs.existsSync(statePath)) {
-        const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8')) || {};
-        const scoped = tenant && tenant.id ? parsed[tenant.id] : parsed.default;
-        chosen = String(scoped && scoped.goLiveAt || '').trim();
-      }
-    } catch (_) {
-      chosen = '';
-    }
-  }
-  if (!chosen) chosen = envValue('DASHBOARD_GO_LIVE_AT').trim();
-  if (!chosen) return 0;
-  const ms = Date.parse(chosen);
+  const ms = Date.parse(tenant && tenant.go_live_at);
   return Number.isFinite(ms) ? ms : 0;
 }
 
@@ -79,6 +67,13 @@ function mapCall(item, tenantFromNumber) {
     disconnection_reason: item.disconnection_reason || '',
     callAnalysis: item.call_analysis || {},
     call_analysis: item.call_analysis || {},
+    // Strukturierte Rueckrufzeit aus der Post Call Analysis bzw. den gesammelten
+    // Variablen des Agents - zuverlaessiger als das Auslesen des Freitexts.
+    callback: callbackFields(
+      item.call_analysis && item.call_analysis.custom_analysis_data,
+      item.collected_dynamic_variables,
+      item.retell_llm_dynamic_variables,
+    ),
     summary: (item.call_analysis && item.call_analysis.call_summary) || '',
     createdAt,
     updatedAt,
@@ -100,6 +95,67 @@ async function fetchRetellListCalls(retellApiKey, body) {
     });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+// Eine Seite Retell-Gespraeche. Retell blaettert ueber einen pagination_key; die
+// Abfrage bleibt sonst genau so aufgebaut wie bisher (nur groesser und mit Cursor).
+async function fetchRetellPage(retellApiKey, agentId, tenantFromNumber, options) {
+  const request = {
+    sort_order: 'descending',
+    limit: RETELL_PAGE_SIZE,
+    filter_criteria: { agent_id: [agentId] },
+  };
+  // Cursor fuer die normale Kette; `skip` nur beim Wiedereinstieg in eine Luecke
+  // (Retell erlaubt nicht beides zugleich).
+  if (options && options.cursor) request.pagination_key = options.cursor;
+  else if (options && Number(options.skip) > 0) request.skip = Number(options.skip);
+
+  const response = await fetchRetellListCalls(retellApiKey, request);
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = {}; }
+  if (!response.ok) {
+    const error = new Error(data.error_message || data.message || 'Retell Calls konnten nicht geladen werden');
+    error.status = response.status || 502;
+    throw error;
+  }
+
+  const items = Array.isArray(data.items) ? data.items : [];
+  // STRIKTE DATENTRENNUNG: nur Gespraeche des eigenen Agents, auch wenn der
+  // Anbieter den Filter einmal ignorieren sollte.
+  const own = items.filter((item) => String(item.agent_id || '') === agentId);
+  const more = data.has_more === undefined ? items.length >= RETELL_PAGE_SIZE : Boolean(data.has_more);
+  return {
+    calls: own.map((item) => mapCall(item, tenantFromNumber)),
+    cursor: more && data.pagination_key ? String(data.pagination_key) : '',
+    more,
+    supportsBefore: false,
+  };
+}
+
+// Gespraeche des Mandanten holen, ablegen und die gespeicherte Historie zurueckgeben.
+// Geblaettert wird bis zur bereits gespeicherten Historie; ein offener Rueckstand
+// wird ueber die naechsten Abrufe nachgearbeitet (siehe _lib/call-history.js).
+async function loadWorkspace(tenant, fetchPage) {
+  const state = await loadHistoryState(tenant);
+  state.cutoffMs = cutoffMsFromTenant(tenant);
+  const history = await collectHistory(fetchPage, state);
+  const workspace = await syncCalls(tenant, history.calls);
+  await saveHistoryState(tenant, state, history);
+  return { workspace, historyPending: !history.complete };
+}
+
+async function listCallbackRequests(tenantId, accessToken) {
+  try {
+    return await listRows('callback_requests', {
+      select: '*',
+      tenant_id: 'eq.' + tenantId,
+      order: 'created_at.desc',
+      limit: 50,
+    }, { accessToken });
+  } catch (_) {
+    return [];
   }
 }
 
@@ -136,27 +192,32 @@ exports.handler = async (event) => {
     // serviceRole, weil der Admin die Settings mit serviceRole speichert (RLS).
     if (tenantContext.tenant && tenantContext.tenant.id) {
       try {
-        const settings = await getTenantSettings(tenantContext.tenant.id, { serviceRole: true });
+        const settings = await getTenantSettings(tenantContext.tenant.id, { serviceRole: true, strict:true });
         if (settings && settings.minutes_budget !== undefined) tenantContext.tenant.minutes_budget = Number(settings.minutes_budget) || 0;
         tenantContext.tenant.detailed_analysis = Boolean(settings && settings.detailed_analysis);
-      } catch (_) { /* Einstellungen optional */ }
+      } catch (_) { return json(503,{ok:false,message:'Kundeneinstellungen konnten nicht geladen werden. Bitte erneut aktualisieren.'}); }
     }
 
     try {
-      const allCalls = await elevenlabs.listConversations(elAgentId, { limit: 120 });
+      // Rufnummern und Zusammenfassungen liefert erst die Detailabfrage. Angereichert
+      // wird nur die erste (neueste) Seite - beim Nacharbeiten alter Gespraeche waeren
+      // hunderte Detailabrufe zu langsam; eine geoeffnete Altkonversation holt ihre
+      // Nummer weiterhin ueber get-call-detail nach.
+      const { workspace, historyPending } = await loadWorkspace(tenantContext.tenant, async (page) => {
+        const result = await elevenlabs.listConversationsPage(elAgentId, page);
+        if (page.cursor || page.beforeMs) return result;
+        return Object.assign({}, result, { calls: await elevenlabs.enrichConversations(elAgentId, result.calls) });
+      });
+      tenantContext.tenant.minutes_used = workspace.minutesUsed;
+      const allCalls = workspace.calls;
       const cutoffMs = cutoffMsFromTenant(tenantContext.tenant);
       const calls = cutoffMs
         ? allCalls.filter((c) => { const t = Date.parse(c.createdAt); return Number.isFinite(t) && t >= cutoffMs; })
         : allCalls;
 
-      let callbacks = [];
-      try {
-        callbacks = await listRows('callback_requests', {
-          select: '*', tenant_id: 'eq.' + tenantContext.tenant.id, order: 'created_at.desc', limit: 50,
-        }, { accessToken });
-      } catch (_) { callbacks = []; }
+      const callbacks = await listCallbackRequests(tenantContext.tenant.id, accessToken);
 
-      return json(200, { ok: true, tenant: tenantContext.tenant, calls, callbacks });
+      return json(200, { ok: true, tenant: tenantContext.tenant, calls, callbacks, historyLimited:workspace.historyLimited, historyPending });
     } catch (error) {
       return json(502, { ok: false, message: 'ElevenLabs nicht erreichbar.', detail: String(error && error.message ? error.message : error), calls: [] });
     }
@@ -169,14 +230,13 @@ exports.handler = async (event) => {
   // WICHTIG: serviceRole, weil Admin die Settings mit serviceRole speichert und RLS sie blockiert, wenn nur accessToken.
   if (tenantContext.tenant && tenantContext.tenant.id) {
     try {
-      const settings = await getTenantSettings(tenantContext.tenant.id, { serviceRole: true });
+      const settings = await getTenantSettings(tenantContext.tenant.id, { serviceRole: true, strict:true });
       if (settings && settings.minutes_budget !== undefined) tenantContext.tenant.minutes_budget = Number(settings.minutes_budget) || 0;
       tenantContext.tenant.detailed_analysis = Boolean(settings && settings.detailed_analysis);
       tenantContext.tenant.booking_enabled = settings.booking_enabled === true;
       tenantContext.tenant.sms_appointment_template = String(settings.sms_appointment_template || '');
-      tenantContext.tenant.calcom_api_key = String(settings.calcom_api_key || '');
       tenantContext.tenant.calcom_event_type_id = String(settings.calcom_event_type_id || '');
-    } catch (_) { /* Einstellungen optional */ }
+    } catch (_) { return json(503,{ok:false,message:'Kundeneinstellungen konnten nicht geladen werden. Bitte erneut aktualisieren.'}); }
   }
 
   // STRIKTE DATENTRENNUNG: ausschliesslich der eigene Retell-Agent des Mandanten.
@@ -193,47 +253,20 @@ exports.handler = async (event) => {
       message: 'Kein Retell-Agent fuer diesen Mandanten hinterlegt.',
     });
   }
-  const body = {
-    sort_order: 'descending',
-    limit: 120,
-    filter_criteria: { agent_id: [agentId] },
-  };
 
   try {
-    const response = await fetchRetellListCalls(retellApiKey, body);
-    const raw = await response.text();
-    let data = {};
-    try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = {}; }
-
-    if (!response.ok) {
-      const msg = data.error_message || data.message || 'Retell Calls konnten nicht geladen werden';
-      return json(response.status || 502, { ok: false, message: msg, calls: [] });
-    }
-
-    const items = Array.isArray(data.items) ? data.items : [];
+    const { workspace, historyPending } = await loadWorkspace(tenantContext.tenant, (page) =>
+      fetchRetellPage(retellApiKey, agentId, tenantContext.tenant.retell_from_number, page));
+    tenantContext.tenant.minutes_used = workspace.minutesUsed;
     const cutoffMs = cutoffMsFromTenant(tenantContext.tenant);
-    const filteredItems = cutoffMs
-      ? items.filter((item) => {
-          const start = Number(item.start_timestamp || 0);
-          return Number.isFinite(start) && start >= cutoffMs;
-        })
-      : items;
-    const calls = filteredItems.map((item) => mapCall(item, tenantContext.tenant && tenantContext.tenant.retell_from_number));
+    const calls = workspace.calls.filter(call=>!cutoffMs || Date.parse(call.createdAt)>=cutoffMs);
 
-    let callbacks = [];
-    try {
-      callbacks = await listRows('callback_requests', {
-        select: '*',
-        tenant_id: 'eq.' + tenantContext.tenant.id,
-        order: 'created_at.desc',
-        limit: 50,
-      }, { accessToken });
-    } catch (_) {
-      callbacks = [];
-    }
+    const callbacks = await listCallbackRequests(tenantContext.tenant.id, accessToken);
 
-    return json(200, { ok: true, tenant: tenantContext.tenant, calls, callbacks });
+    return json(200, { ok: true, tenant: tenantContext.tenant, calls, callbacks, historyLimited:workspace.historyLimited, historyPending });
   } catch (error) {
-    return json(502, { ok: false, message: 'Retell nicht erreichbar.', detail: String(error && error.message ? error.message : error), calls: [] });
+    const status = error && error.status && error.status < 500 ? error.status : 502;
+    const message = error && error.status ? (error.message || 'Retell Calls konnten nicht geladen werden') : 'Retell nicht erreichbar.';
+    return json(status, { ok: false, message, detail: String(error && error.message ? error.message : error), calls: [] });
   }
 };

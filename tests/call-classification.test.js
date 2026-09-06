@@ -1,0 +1,18 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const script = fs.readFileSync(require.resolve('../public/dashboard-model.js'), 'utf8');
+const source = script.slice(script.indexOf('function classifyCall('), script.indexOf('function topicFromCall('));
+const context = {isTaskMarkedDone:c=>!!c.done,summaryFor:c=>c.summary || ''};
+vm.createContext(context); vm.runInContext(source,context);
+const classify = context.classifyCall;
+assert.equal(classify({status:'ended',summary:''}).key,'problem','empty analysis must not appear completed');
+assert.equal(classify({status:'ongoing'}).key,'live','ongoing call is not a callback');
+assert.equal(classify({status:'ended',summary:'Bitte Rückruf vereinbaren.'}).key,'callback');
+assert.equal(classify({status:'ended',summary:'Angebot für eine neue Heizung angefragt.'}).key,'callback','new work needs attention');
+assert.equal(classify({status:'ended',summary:'Die Öffnungszeiten wurden genannt.'}).key,'done');
+assert.equal(classify({status:'ended',summary:'Kein Rückruf erforderlich. Die Adresse wurde genannt.'}).key,'done');
+console.log('Call classification passed');
+vm.runInContext(script.slice(script.indexOf('function customerPhone('),script.indexOf('function toGermanCallError(')),context);
+assert.equal(context.customerPhone({provider:'elevenlabs',direction:'outbound',phoneNumber:'+49123',from_number:'+49123',to_number:'+49999'}),'+49123');
+assert.equal(context.customerPhone({direction:'inbound',to_number:'+49999'}),'','withheld caller number must not become business number');

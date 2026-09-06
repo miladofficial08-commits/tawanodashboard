@@ -5,9 +5,11 @@
   "description": "Tawano Customer Dashboard (frontend + Netlify functions)",
   "scripts": {
     "start": "node server.js",
-    "dev": "netlify dev",
-    "test": "node tests/retell-tool-auth.test.js && node tests/tavano-booking.test.js && node tests/tavano-sms-flow.test.js && node tests/retell-call-ended.test.js && node tests/retell-prompt-payload.test.js && node tests/tavano-lead.test.js && node tests/tavano-page.test.js && node tests/alert.test.js && node tests/server-adapter.test.js && node tests/elevenlabs-provider.test.js && node tests/start-call-isolation.test.js",
-    "build": "netlify build"
+    "dev": "node server.js",
+    "dev:netlify": "netlify dev",
+    "test": "node tests/retell-tool-auth.test.js && node tests/tavano-booking.test.js && node tests/tavano-sms-flow.test.js && node tests/retell-call-ended.test.js && node tests/retell-prompt-payload.test.js && node tests/tavano-lead.test.js && node tests/tavano-page.test.js && node tests/alert.test.js && node tests/server-adapter.test.js && node tests/elevenlabs-provider.test.js && node tests/start-call-isolation.test.js && node tests/customer-boundaries.test.js && node tests/tenant-membership.test.js && node tests/agent-assignment.test.js && node tests/elevenlabs-enrichment.test.js && node tests/customer-provisioning.test.js && node tests/call-classification.test.js && node tests/call-brief.test.js && node tests/preview-isolation.test.js && node tests/planner-time.test.js && node tests/call-workspace.test.js && node tests/admin-reset.test.js && node tests/workspace-sync.test.js && node tests/call-history.test.js && node tests/callback-structured.test.js && node tests/dashboard-refresh.test.js && node tests/settings-resilience.test.js",
+    "build": "netlify build",
+    "check:connections": "node scripts/check-connections.cjs"
   },
   "engines": {
     "node": ">=20"
