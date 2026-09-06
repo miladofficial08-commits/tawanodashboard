@@ -106,7 +106,9 @@ function renderCustomer(c) {
       + '<div class="tg"><div class="lbl">Terminbuchung<small>Cal.com pro Anruf</small></div><label class="switch"><input type="checkbox" class="book-toggle" '+(bookOn?'checked':'')+'><span class="slider"></span></label></div>'
     + '</div>'
     + '<div class="field" style="margin-bottom:12px"><label>Minuten-Budget (0 = ausblenden)</label><input class="f-minutes" type="number" min="0" max="1000000" oninput="this.closest(\'.cust\').querySelector(\'.min-toggle\').checked=Number(this.value)>0" value="'+esc(minOn?c.minutes_budget:'')+'" placeholder="z. B. 200"></div>'
-    + '<div class="reset-controls"><strong>Zählung & Gesprächszeitraum</strong><p>Das Budget bleibt erhalten. Resets gelten für diesen Kunden auf allen Geräten.</p><button class="btn btn-ghost" onclick="resetCustomerUsage(this,\'minutes\')">Minuten ab jetzt neu zählen</button><p class="reset-minutes-at">'+(c.minutes_reset_at?'Zählung seit '+esc(fmt(c.minutes_reset_at)):'Noch kein Minutenreset')+'</p><button class="btn btn-ghost" onclick="resetCustomerUsage(this,\'conversations\')">Gesprächsansicht ab jetzt beginnen</button><p class="reset-conversations-at">'+(c.go_live_at?'Gespräche sichtbar ab '+esc(fmt(c.go_live_at)):'Alle verfügbaren Gespräche sichtbar')+'</p></div>'
+    + '<div class="reset-controls"><strong>Zählung & Gesprächszeitraum</strong><p>Das Budget bleibt erhalten. Resets gelten für diesen Kunden auf allen Geräten.</p><button class="btn btn-ghost" onclick="resetCustomerUsage(this,\'minutes\')">Minuten ab jetzt neu zählen</button><p class="reset-minutes-at">'+(c.minutes_reset_at?'Zählung seit '+esc(fmt(c.minutes_reset_at)):'Noch kein Minutenreset')+'</p><button class="btn btn-ghost" onclick="resetCustomerUsage(this,\'conversations\')">Gesprächsansicht ab jetzt beginnen</button><p class="reset-conversations-at">'+(c.go_live_at?'Gespräche sichtbar ab '+esc(fmt(c.go_live_at)):'Alle verfügbaren Gespräche sichtbar')+'</p>'
+      + '<hr class="reset-sep"><strong>Vollständiger Reset</strong><p>Löscht gespeicherte Gespräche, Notizen, Rückruftermine, Rückrufaufträge und Bewertungen dieses Kunden und startet Minuten und Gesprächsansicht neu. Zugang, Agent und Einstellungen bleiben. Aufnahmen beim Telefonanbieter bleiben ebenfalls. <b>Nicht umkehrbar.</b></p>'
+      + '<button class="btn btn-del" onclick="resetCustomerUsage(this,&quot;all&quot;)">Alle Dashboard-Daten löschen</button></div>'
     + '<details class="det"><summary>Einstellungen & SMS-Nachricht bearbeiten</summary><div class="inner">'
       + '<div class="grid2"><div class="field"><label>Voice-Provider</label><select class="f-provider">'
         + '<option value="retell"'+(provider==='retell'?' selected':'')+'>Retell</option>'
@@ -225,12 +227,24 @@ function adminLogout(){ if(adminPreview){location.href="/admin";return;} documen
 async function resetCustomerUsage(btn,mode) {
   const card=btn.closest('.cust'),id=card.dataset.id;
   const name=card.querySelector('.cust-id strong').textContent;
-  const question=mode==='minutes'?'Minutenverbrauch für '+name+' ab jetzt bei 0 beginnen? Das Minutenbudget und die Gespräche bleiben erhalten.':'Frühere Gespräche und Rückrufe für '+name+' ab jetzt ausblenden? Auch offene ältere Rückrufe werden ausgeblendet. Die Minuten-Zählung bleibt unverändert.';
-  if(!confirm(question))return;
+  const payload={tenant_id:id,mode};
+  if(mode==='all') {
+    // Nicht umkehrbar: der Kundenname muss getippt werden, ein Klick reicht nicht.
+    const typed=prompt(['ALLE Dashboard-Daten von "'+name+'" löschen?','',
+      'Gespräche, Notizen, Rückruftermine, Rückrufaufträge und Bewertungen werden gelöscht. Das lässt sich nicht rückgängig machen.','',
+      'Zum Bestätigen den Kundennamen eintippen:'].join('\n'));
+    if(typed===null)return;
+    if(String(typed).trim().toLowerCase()!==name.trim().toLowerCase()){alert('Name stimmt nicht. Es wurde nichts gelöscht.');return;}
+    payload.confirm=true;
+  } else {
+    const question=mode==='minutes'?'Minutenverbrauch für '+name+' ab jetzt bei 0 beginnen? Das Minutenbudget und die Gespräche bleiben erhalten.':'Frühere Gespräche und Rückrufe für '+name+' ab jetzt ausblenden? Auch offene ältere Rückrufe werden ausgeblendet. Die Minuten-Zählung bleibt unverändert.';
+    if(!confirm(question))return;
+  }
   const msg=card.querySelector('.cmsg');btn.disabled=true;msg.textContent='Speichert…';
   try {
-    const result=await api('/api/admin/reset-usage',{tenant_id:id,mode});
+    const result=await api('/api/admin/reset-usage',payload);
     msg.className='cmsg ok';msg.textContent=result.message;
+    if(mode==='all'){loadCustomers();return;}
     card.querySelector('.reset-'+mode+'-at').textContent=(mode==='minutes'?'Zählung seit ':'Gespräche sichtbar ab ')+fmt(result.reset_at);
   }catch(e){msg.className='cmsg err';msg.textContent=e.message;}
   finally{btn.disabled=false;}

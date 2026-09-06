@@ -10,6 +10,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const express = require('express');
 const { sendAlert } = require('./netlify/functions/_lib/alert');
+const { envValue } = require('./netlify/functions/_lib/tenant');
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -149,12 +150,69 @@ for (const [route, fnName] of Object.entries(API_ROUTES)) {
 // Kompatibilitaet: das Dashboard faellt bei Fehlern auf /.netlify/functions/<name> zurueck.
 app.all('/.netlify/functions/:name', (req, res) => runFunction(req.params.name, req, res));
 
+// ── Beispiel-Dashboard hinter einem Zugangswort ───────────────────────────
+// Die Beispieldaten sind erfunden, sollen aber nicht frei im Netz stehen.
+// Geprueft wird serverseitig: ohne gueltigen Cookie gibt es weder /demo noch
+// /?demo=1. Das Zugangswort steht in der Umgebungsvariable DEMO_PASSWORD.
+const crypto = require('node:crypto');
+const DEMO_COOKIE = 'tawano_demo';
+const DEMO_MAX_AGE_HOURS = 12;
+
+function demoPassword() {
+  // envValue liest zuerst process.env (Railway) und faellt lokal auf .env zurueck.
+  return String(envValue('DEMO_PASSWORD') || '').trim();
+}
+function demoToken(expiresAt) {
+  const mac = crypto.createHmac('sha256', demoPassword()).update(String(expiresAt)).digest('hex');
+  return expiresAt + '.' + mac;
+}
+function demoCookieValid(req) {
+  const password = demoPassword();
+  if (!password) return false; // ohne gesetztes Passwort bleibt der Bereich zu
+  const raw = String(req.headers.cookie || '')
+    .split(';').map((part) => part.trim())
+    .find((part) => part.startsWith(DEMO_COOKIE + '='));
+  if (!raw) return false;
+  const value = decodeURIComponent(raw.slice(DEMO_COOKIE.length + 1));
+  const expiresAt = Number(value.split('.')[0]);
+  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return false;
+  const expected = Buffer.from(demoToken(expiresAt));
+  const given = Buffer.from(value);
+  return expected.length === given.length && crypto.timingSafeEqual(expected, given);
+}
+function sendDemoGate(res, failed) {
+  const html = fs.readFileSync(path.join(__dirname, 'demo-gate.html'), 'utf8')
+    .replace('<!--FEHLER-->', failed ? '<p class="err">Zugangswort stimmt nicht.</p>' : '');
+  res.status(failed ? 401 : 200).type('html').send(html);
+}
+
+app.post('/demo/login', (req, res) => {
+  // Der globale express.raw-Parser hat den Body schon als Buffer gelesen.
+  const raw = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body || '');
+  const password = demoPassword();
+  const given = String(new URLSearchParams(raw).get('password') || '');
+  const ok = Boolean(password) && given.length === password.length
+    && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(password));
+  if (!ok) return sendDemoGate(res, true);
+  const expiresAt = Date.now() + DEMO_MAX_AGE_HOURS * 3600000;
+  res.cookie(DEMO_COOKIE, demoToken(expiresAt), {
+    httpOnly: true, sameSite: 'lax', secure: req.protocol === 'https', maxAge: DEMO_MAX_AGE_HOURS * 3600000, path: '/',
+  });
+  res.redirect(302, '/?demo=1');
+});
+
 for (const [route, file] of Object.entries(STATIC_PAGES)) {
-  app.get(route, (_req, res) => res.sendFile(path.join(__dirname, file)));
+  app.get(route, (req, res) => {
+    if (req.query && req.query.demo === '1' && !demoCookieValid(req)) return sendDemoGate(res, false);
+    res.sendFile(path.join(__dirname, file));
+  });
 }
 
 // Kurzadresse fuer das Beispiel-Dashboard (Vertrieb): /demo statt der langen URL.
-app.get('/demo', (_req, res) => res.redirect(302, '/?demo=1'));
+app.get('/demo', (req, res) => {
+  if (!demoCookieValid(req)) return sendDemoGate(res, false);
+  res.redirect(302, '/?demo=1');
+});
 
 // Alte Adresse bleibt gueltig (Lesezeichen, verschickte Links) - fuehrt aber auf
 // die saubere Wurzel-URL. Query bleibt erhalten, die Raute liefert der Browser mit.
@@ -165,8 +223,12 @@ app.get('/Dashboardkunde.html', (req, res) => {
 
 app.use((_req, res) => res.status(404).send('Nicht gefunden'));
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log('Tawano laeuft auf Port ' + PORT);
-});
+// Nur starten, wenn direkt aufgerufen - Tests duerfen `app` importieren, ohne
+// dass dabei ein Server auf dem echten Port hochkommt.
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log('Tawano laeuft auf Port ' + PORT);
+  });
+}
 
 module.exports = { app, toNetlifyEvent, loadHandler, STATIC_PAGES, API_ROUTES };

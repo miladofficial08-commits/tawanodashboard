@@ -82,3 +82,5 @@ details.det .inner{padding:4px 0 12px}
 .demo-card strong{display:block;font-size:1.02rem}
 .demo-card p{margin:4px 0 0;color:#4a5b72;font-size:.9rem;max-width:60ch;line-height:1.5}
 .demo-actions{display:flex;gap:8px;flex-wrap:wrap}
+.reset-sep{border:0;border-top:1px solid var(--line,#dfe7f0);margin:14px 0 10px}
+.reset-controls .btn-del{margin-top:2px}

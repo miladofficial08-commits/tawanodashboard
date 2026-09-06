@@ -189,6 +189,20 @@ async function patchRows(table, params, patch, options) {
   return Array.isArray(result.data) ? result.data : [];
 }
 
+async function deleteRows(table, params, options) {
+  const result = await supabaseRequest('/rest/v1/' + table + buildQuery(params), Object.assign({}, options || {}, {
+    method: 'DELETE',
+    prefer: 'return=representation',
+  }));
+  if (!result.response.ok) {
+    const error = new Error((result.data && (result.data.message || result.data.error)) || ('Supabase delete failed for ' + table));
+    error.status = result.response.status;
+    error.data = result.data;
+    throw error;
+  }
+  return Array.isArray(result.data) ? result.data : [];
+}
+
 function isMissingSchemaError(error) {
   return Boolean(error && error.data && (error.data.code === 'PGRST205' || error.data.code === '42P01'));
 }
@@ -454,6 +468,7 @@ module.exports = {
   fallbackTenantFromEnv,
   fetchSupabaseUser,
   insertRow,
+  deleteRows,
   isMissingSchemaError,
   json,
   listRows,

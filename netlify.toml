@@ -122,12 +122,6 @@ to = "/.netlify/functions/get-available-slots"
 status = 200
 force = true
 
-[[redirects]]
-from = "/demo"
-to = "/?demo=1"
-status = 302
-force = true
-
 # Wurzel zeigt direkt das Dashboard (gleiche URL, kein Dateiname sichtbar).
 [[redirects]]
 from = "/"

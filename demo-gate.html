@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Tawano · Beispiel-Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;
+    font-family:'Manrope',system-ui,sans-serif;color:#f2f7f4;
+    background:radial-gradient(1200px 600px at 20% -10%,#1d4b3c 0,#14342a 55%,#0e241d 100%)}
+  .box{width:100%;max-width:420px;background:#fbfdfc;color:#132238;border-radius:20px;
+    padding:32px;box-shadow:0 30px 70px rgba(0,0,0,.34)}
+  .brand{font-size:24px;font-weight:800;color:#14342a;margin:0 0 22px}
+  h1{font-size:26px;margin:0 0 8px;letter-spacing:-.3px}
+  p{margin:0 0 22px;color:#64748b;font-size:15px;line-height:1.6}
+  label{display:block;font-weight:700;font-size:.9rem;margin-bottom:6px}
+  input{width:100%;padding:13px 14px;border:1px solid #dfe7f0;border-radius:12px;font:inherit}
+  input:focus{outline:2px solid #0f8a5f;outline-offset:1px}
+  button{width:100%;margin-top:16px;padding:15px;border:0;border-radius:12px;background:#0f8a5f;
+    color:#fff;font:inherit;font-weight:800;cursor:pointer}
+  button:hover{background:#0c7350}
+  .err{margin:16px 0 0;padding:11px 14px;border-radius:10px;background:#fff2f0;border:1px solid #f2cfca;
+    color:#8a2f24;font-weight:600;font-size:.9rem}
+  .foot{margin:20px 0 0;font-size:13px;color:#8394a8;text-align:center}
+</style>
+</head>
+<body>
+  <main class="box">
+    <p class="brand">Tawano.</p>
+    <h1>Beispiel-Dashboard</h1>
+    <p>Dieser Bereich zeigt einen Musterbetrieb mit erfundenen Daten. Bitte das Zugangswort eingeben.</p>
+    <form method="POST" action="/demo/login">
+      <label for="demo-password">Zugangswort</label>
+      <input id="demo-password" name="password" type="password" autocomplete="off" autofocus required>
+      <button type="submit">Beispiel-Dashboard öffnen</button>
+    </form>
+    <!--FEHLER-->
+    <p class="foot">Kein Kundenzugang. Für dein eigenes Dashboard bitte <a href="/">hier anmelden</a>.</p>
+  </main>
+</body>
+</html>
