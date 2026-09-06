@@ -13,6 +13,9 @@ const { sendAlert } = require('./netlify/functions/_lib/alert');
 const { envValue } = require('./netlify/functions/_lib/tenant');
 
 const app = express();
+// Hinter dem Railway-Proxy: X-Forwarded-Proto auswerten, damit Cookies das
+// Secure-Flag bekommen (req.protocol waere sonst immer "http").
+app.set('trust proxy', 1);
 const PORT = Number(process.env.PORT || 8080);
 const FUNCTIONS_DIR = path.join(__dirname, 'netlify', 'functions');
 app.use('/public', express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
