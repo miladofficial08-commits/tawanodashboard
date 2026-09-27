@@ -7,6 +7,7 @@
  * an eine Testnummer – ohne Retell, ohne echten Anruf.
  */
 const { envValue, json, readBody, getTenantById, getTenantSettings } = require('./_lib/tenant');
+const { __test: smsTemplate } = require('./send-booking-link');
 
 function checkAdmin(event, body) {
   const adminSecret = envValue('ADMIN_SECRET').trim();
@@ -84,10 +85,11 @@ exports.handler = async (event) => {
   }
   const bookingLink = String(tenant.booking_link_url || '').trim();
   const feedbackLink = FEEDBACK_BASE_URL ? FEEDBACK_BASE_URL + '?p=' + encodeURIComponent(toNumber) + '&t=' + encodeURIComponent(tenantId) : '';
-  const message = String(template)
-    .replaceAll('{booking_link}', bookingLink)
-    .replaceAll('{feedback_link}', feedbackLink)
-    .replaceAll('{customer_name}', 'Testperson');
+  const message = smsTemplate.renderSmsTemplate(template, {
+    bookingLink,
+    feedbackLink,
+    customerName: 'Testperson',
+  });
 
   const result = await sendViaSeven(toNumber, message, smsSender);
   return json(result.sent ? 200 : 502, {

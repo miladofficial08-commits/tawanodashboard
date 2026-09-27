@@ -63,10 +63,9 @@ function providerSummaryText(call) {
   return String(custom.summary || analysis.call_summary || analysis.summary || call.summary || '').trim();
 }
 // Im Dashboard steht ausschliesslich Deutsch. Englische Anbietertexte werden in
-// einen deutschen Satz umgeschrieben (public/german.js); das Original bleibt im
-// Detail unter "Originaltext des Anbieters" nachlesbar.
+// einen deutschen Hinweis umgeschrieben. Unübersetzte Rohtexte werden nicht angezeigt.
 function germanSummaryOf(call) {
-  return memoOnCall(call, '_german', textStamp(call), () => {
+  return memoOnCall(call, '_german', providerSummaryText(call), () => {
     const raw = providerSummaryText(call);
     if (typeof German === 'undefined') return { text: raw, translated: false, original: '' };
     return German.germanSummary(raw);
@@ -106,7 +105,7 @@ function mapDisconnectionReason(reasonRaw) {
   if (DISCONNECT_LABELS[reason]) return DISCONNECT_LABELS[reason];
   const hint = DISCONNECT_HINTS.find(([pattern]) => pattern.test(reason));
   if (hint) return hint[1];
-  return /[a-z]{3,}\s[a-z]{3,}/.test(reason) ? 'Gespräch beendet' : reason.replace(/_/g, ' ');
+  return 'Gespräch beendet';
 }
 // Ergebnisse je Gespraech zwischenspeichern: Einstufung und Rueckrufzeit werden beim
 // Rendern mehrfach gebraucht, und die Liste kann seit der vollstaendigen Historie
@@ -212,7 +211,7 @@ function buildDetailModel(call, sourceText) {
   // Anliegen (Hauptgrund)
   let anliegen = cleanFactText(extractFieldByLabels(norm, ['anliegen', 'intent', 'grund', 'anfrage'])
     || String(custom.intent || custom.reason || call.intent || call.reason || '').trim());
-  if (!anliegen) anliegen = summaryFor(call);
+  if (!anliegen) anliegen = block || summaryFor(call);
 
   // Details als Stichpunkte
   let details = extractDetailLines(norm);
@@ -242,9 +241,48 @@ function buildDetailModel(call, sourceText) {
   if (stimmung) stimmung = sMap[stimmung.toLowerCase()] || stimmung;
   const beendigung = mapDisconnectionReason(call.disconnectionReason || call.disconnection_reason);
   const original = germanSummaryOf(call).original;
+  const rows = original ? [] : detailFactRows(block);
   const rueckruf = callbackInstructionFromText([naechster, norm, summaryFor(call)].join(' | '));
 
-  return { anliegen, details, naechster, erledigt, stimmung, beendigung, rueckruf, original };
+  return { anliegen, details, naechster, erledigt, stimmung, beendigung, rueckruf, original, rows };
+}
+function detailFactRows(text) {
+  const labels = ['Name', 'Einsatzort', 'Adresse', 'Anliegen', 'Dringlichkeit', 'Erreichbarkeit',
+    'Terminwunsch', 'Zeitangabe', 'Preis', 'Zusätzliche Arbeiten', 'Besprochen', 'Offen', 'Nächster Schritt'];
+  const rows = [];
+  let recognized = 0;
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const clean = line.replace(/^\s*[-*•]\s*/, '').trim();
+    if (!clean) continue;
+    const match = clean.match(/^([^:]{2,40}):\s*(.*)$/);
+    if (match) {
+      const label = labels.find(label => label.toLowerCase() === match[1].toLowerCase());
+      if (label) recognized++;
+      rows.push({label:label || match[1], value:match[2]});
+    } else if (rows.length) rows[rows.length - 1].value += ' ' + clean;
+    else rows.push({label:'Details',value:clean});
+  }
+  return recognized >= 2 ? rows.filter(row => row.value) : [];
+}
+function detailBulletPoints(text) {
+  const lines = String(text || '').split(/\r?\n/).map(line => line.replace(/^\s*[-•*]\s*/, '').trim()).filter(Boolean);
+  const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('de', {granularity:'sentence'}) : null;
+  return lines.flatMap(line => {
+    const segments = segmenter ? Array.from(segmenter.segment(line), item => item.segment.trim()) : line.split(/(?<=[.!?])\s+(?=[A-ZÄÖÜ])/);
+    const points = [];
+    for (const segment of segments) {
+      if (points.length && /\b(?:Dr|Prof|bzw|ca|z|B|d|h)\.$/i.test(points[points.length - 1])) points[points.length - 1] += ' ' + segment;
+      else if (segment) points.push(segment);
+    }
+    return points;
+  });
+}
+function detailExtraHtml(rows) {
+  if (!rows.length) return '';
+  return '<details class="detail-extra"><summary>Weitere Details <span>' + rows.length + '</span></summary>'
+    + '<ul class="detail-summary-list">' + rows.map(row => '<li>'
+      + (row.label ? '<strong>' + escHtml(row.label) + ':</strong> ' : '') + escHtml(row.value) + '</li>').join('')
+    + '</ul></details>';
 }
 // Erzeugt das HTML für den Detail-Modal aus dem Modell
 function detailHtml(call, info, m, phone) {
@@ -259,23 +297,37 @@ function detailHtml(call, info, m, phone) {
   parts.push('<div class="detail-chips">' + chips + '</div>');
 
   // Anliegen (Hauptsache, groß)
-  parts.push('<div class="detail-hero"><em> Anliegen</em><p>' + escHtml(m.anliegen || 'Kein konkretes Anliegen erkannt.') + '</p></div>');
+  const structured = m.rows && m.rows.length;
+  const mainLabels = ['Name', 'Einsatzort', 'Adresse', 'Anliegen', 'Dringlichkeit', 'Erreichbarkeit', 'Terminwunsch', 'Zeitangabe', 'Nächster Schritt'];
+  const isMain = row => mainLabels.includes(row.label)
+    || (row.label === 'Besprochen' && /sicher|gefahr|abstand|verteiler|rauch|112|einschalt|stromschlag/i.test(row.value));
+  const extraRows = structured ? m.rows.filter(row => !isMain(row)) : [];
+  const mainRows = structured ? m.rows.filter(isMain) : [];
+  const rowClass = row => row.label === 'Dringlichkeit' ? ' fact-attention'
+    : ['Terminwunsch', 'Zeitangabe'].includes(row.label) ? ' fact-time'
+    : row.label === 'Nächster Schritt' ? ' fact-next' : '';
+  const overview = m.original
+    ? '<p class="detail-language-notice">Eine vollständige deutsche Auswertung liegt für diesen Anruf noch nicht vor.</p>'
+    : '<ul class="detail-summary-list' + (structured ? ' detail-facts' : '') + '">' + (structured
+      ? mainRows.map(row => '<li class="fact-row' + rowClass(row) + '"><strong>' + escHtml(row.label) + ':</strong> ' + escHtml(row.value) + '</li>').join('')
+      : detailBulletPoints(m.anliegen || 'Kein konkretes Anliegen erkannt.').map(point => '<li>' + escHtml(point) + '</li>').join('')) + '</ul>';
+  parts.push('<div class="detail-hero"><em> Auf einen Blick</em>' + overview + '</div>');
+  if (!m.original) parts.push(detailExtraHtml(extraRows));
 
   // Was jetzt zu tun ist – direkt nach dem Anliegen
-  if (m.naechster) {
+  if (!structured && !m.original && m.naechster) {
     parts.push('<div class="detail-action"><em> Nächster Schritt</em><p>' + escHtml(m.naechster) + '</p></div>');
   }
-  if (m.rueckruf) {
+  if (!structured && !m.original && m.rueckruf) {
     parts.push('<div class="detail-callback"><em> Rückrufwunsch im Gespräch</em><p>' + escHtml(m.rueckruf) + '</p></div>');
   }
   // Was bereits passiert ist
-  if (m.erledigt) {
+  if (!structured && !m.original && m.erledigt) {
     parts.push('<div class="detail-done"><em> Erledigt</em><p>' + escHtml(m.erledigt) + '</p></div>');
   }
   // Alle Detail-Stichpunkte
-  if (m.details.length) {
-    parts.push('<div class="detail-section"><em> Wichtigste Details</em><div class="detail-bullets">'
-      + m.details.map((d) => '<div>' + escHtml(d) + '</div>').join('') + '</div></div>');
+  if (!structured && !m.original && m.details.length) {
+    parts.push(detailExtraHtml(m.details.map(value => ({label:'', value}))));
   }
 
   // Kompakte Fakten unten
@@ -286,10 +338,5 @@ function detailHtml(call, info, m, phone) {
   if (phone) meta.push('<div><em>Telefon</em><b>' + escHtml(phone) + '</b></div>');
   meta.push('<div><em>Zeitpunkt</em><b>' + escHtml(fmtTime(call.createdAt)) + '</b></div>');
   parts.push('<div class="detail-meta">' + meta.join('') + '</div>');
-  // Der Anbieter hat englisch zusammengefasst: oben steht die deutsche Fassung,
-  // hier bleibt der Originaltext einsehbar - damit nichts verloren geht.
-  if (m.original) {
-    parts.push('<details class="detail-original"><summary>Originaltext des Telefonanbieters (Englisch)</summary><p>' + escHtml(m.original) + '</p></details>');
-  }
   return parts.join('');
 }

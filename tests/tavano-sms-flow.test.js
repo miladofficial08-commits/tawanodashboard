@@ -27,6 +27,15 @@ function testTavanoLinkReceivesKnownCallParams() {
   assert.equal(parsed.searchParams.get('name'), 'Max Mustermann');
 }
 
+function testBracedUrlsAreNormalizedInSmsTemplates() {
+  const message = __test.renderSmsTemplate('Mehr Informationen:\n{https://tawano.de/voice-agents/}', {
+    bookingLink: '',
+    feedbackLink: '',
+    customerName: '',
+  });
+  assert.equal(message, 'Mehr Informationen:\nhttps://tawano.de/voice-agents/');
+}
+
 function testConfirmationSmsAliasUsesBookingLinkHandler() {
   const confirmationSms = require('../netlify/functions/send-confirmation-sms');
   assert.equal(confirmationSms.handler, sendBookingLink.handler);
@@ -35,6 +44,7 @@ function testConfirmationSmsAliasUsesBookingLinkHandler() {
 function run() {
   testNoHardcodedTemplatesExposed();
   testTavanoLinkReceivesKnownCallParams();
+  testBracedUrlsAreNormalizedInSmsTemplates();
   testConfirmationSmsAliasUsesBookingLinkHandler();
 }
 

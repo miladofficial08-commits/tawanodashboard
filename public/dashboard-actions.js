@@ -110,33 +110,52 @@ async function openDetail(callIdx) {
   if (!call) return;
   detailCallId = callKey(call);
   detailWorkVersion = call.work?.updated_at || null;
-  const info = classifyCall(call);
   let phone = customerPhone(call);
-  if (!previewMode && !phone && call.provider === 'elevenlabs' && call.call_id) {
+  let detailUnavailable = false;
+  const detailToken = authToken;
+  if (!previewMode && call.call_id) {
     try {
       const result = await fetchApi('/api/call-detail', { method:'POST', headers:authHeaders(), body:JSON.stringify({call_id:call.call_id}) });
+      if (detailCallId !== callKey(call) || authToken !== detailToken) return;
       if (result.res.ok && result.data.ok) {
         const detail = result.data.call;
-        call.phoneNumber = detail.from_number;
-        call.from_number = detail.from_number;
+        call.from_number = detail.from_number || call.from_number;
+        call.to_number = detail.to_number || call.to_number;
+        call.direction = detail.direction || call.direction;
+        if (call.provider === 'elevenlabs') call.phoneNumber = detail.from_number || call.phoneNumber;
         call.summary = detail.summary || call.summary;
+        const analysis = Object.assign({}, call.callAnalysis || call.call_analysis || {});
+        if (detail.summary) {
+          analysis.call_summary = detail.summary;
+          if (analysis.custom_analysis_data) analysis.custom_analysis_data = {...analysis.custom_analysis_data,summary:detail.summary};
+        }
+        if (detail.user_sentiment) analysis.user_sentiment = detail.user_sentiment;
+        call.callAnalysis = call.call_analysis = analysis;
+        if (Number(detail.duration_ms) > 0) call.durationMs = Number(detail.duration_ms);
+        call.disconnectionReason = detail.disconnection_reason || call.disconnectionReason;
+        if (detail.callback) call.callback = detail.callback;
+        delete call._classify;
+        delete call._topic;
         phone = customerPhone(call);
         render();
-      }
-    } catch (_) { /* Details remain readable without a phone number. */ }
+      } else detailUnavailable = true;
+    } catch (_) { detailUnavailable = true; }
   }
 
-  const customerName = String(call.customerName || call.name || '').trim();
-  if (detailCallId !== callKey(call)) return;
+  const customerName = String(call.customerName || call.name || extractFieldByLabels(detailSummarySource(call), ['Name']) || '').trim();
+  if (detailCallId !== callKey(call) || authToken !== detailToken) return;
+  const info = classifyCall(call);
   const summaryBlock = detailSummarySource(call);
 
-  document.getElementById('detail-title').textContent = customerName || (phone ? 'Anrufer ' + phone : 'Anruf-Details');
+  document.getElementById('detail-title').textContent = customerName && !/^nicht genannt[.!]?$/i.test(customerName) ? customerName : (phone ? 'Anrufer ' + phone : 'Anruf-Details');
   const subEl = document.getElementById('detail-sub');
   if (subEl) subEl.textContent = fmtTime(call.createdAt) + ' · ' + info.label;
 
   const renderFrom = (text) => {
     const model = buildDetailModel(call, text);
-    document.getElementById('detail-body').innerHTML = detailHtml(call, info, model, phone) + workEditorHtml(call);
+    document.getElementById('detail-body').innerHTML = detailHtml(call, info, model, phone)
+      + (detailUnavailable ? '<p class="empty">Aktuelle Gesprächsdetails konnten nicht geladen werden. Vorhandene Angaben werden angezeigt. Bitte erneut öffnen.</p>' : '')
+      + workEditorHtml(call);
   };
   renderFrom(summaryBlock);
   document.getElementById('call-detail-overlay').classList.remove('hidden');
@@ -172,10 +191,12 @@ async function loadCallTranscript(callId) {
     if (Array.isArray(c.transcript_object) && c.transcript_object.length) {
       html += '<div class="transcript">' + c.transcript_object.map((t) => {
         const isAgent = String(t.role || '') === 'agent';
-        return '<div class="tr ' + (isAgent ? 'tr-agent' : 'tr-user') + '"><strong>' + (isAgent ? 'Agent' : 'Anrufer') + '</strong>' + escHtml(t.content || '') + '</div>';
+        const content = German.isEnglish(t.content) ? 'Dieser Gesprächsbeitrag liegt noch nicht auf Deutsch vor.' : (t.content || '');
+        return '<div class="tr ' + (isAgent ? 'tr-agent' : 'tr-user') + '"><strong>' + (isAgent ? 'Assistent' : 'Anrufer') + '</strong>' + escHtml(content) + '</div>';
       }).join('') + '</div>';
     } else if (c.transcript) {
-      html += '<div class="transcript"><div class="tr tr-agent">' + escHtml(c.transcript).replace(/\n/g, '<br>') + '</div></div>';
+      const content = German.isEnglish(c.transcript) ? 'Dieses Gespräch liegt noch nicht auf Deutsch vor.' : c.transcript;
+      html += '<div class="transcript"><div class="tr tr-agent">' + escHtml(content).replace(/\n/g, '<br>') + '</div></div>';
     } else {
       html += '<div class="empty">Kein Transkript vorhanden.</div>';
     }

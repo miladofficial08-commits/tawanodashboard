@@ -14,7 +14,16 @@ function callBrief(call) {
   // statt "Anliegen noch nicht verfügbar" stehen zu lassen.
   const headline = (chosen || summaryFor(call))
     .replace(/^Anliegen:\s*/i, '').replace(/^Rückruf gewünscht:\s*/i, '').replace(/[.!]$/, '');
-  const details = sentences.filter(s => s !== chosen && !headline.includes(s.replace(/[.!]$/, '')) && !/^(Stimmung|Erledigt|Nächster Schritt|Anliegen):/i.test(s));
+  let details = sentences.filter(s => s !== chosen && !headline.includes(s.replace(/[.!]$/, '')) && !/^(Name|Stimmung|Erledigt|Nächster Schritt|Anliegen):/i.test(s));
+  if (explicit) {
+    const address = extractFieldByLabels(source, ['Einsatzort', 'Adresse']);
+    const time = extractFieldByLabels(source, ['Terminwunsch', 'Zeitangabe']);
+    const urgency = extractFieldByLabels(source, ['Dringlichkeit']);
+    const urgent = /elektrische Gefahr|sofort/i.test(urgency);
+    const second = urgent ? 'Dringlichkeit: ' + urgency : time ? 'Zeitangabe: ' + time : urgency && 'Dringlichkeit: ' + urgency;
+    const keyFacts = [address && 'Einsatzort: ' + address, second].filter(Boolean);
+    if (keyFacts.length) details = keyFacts;
+  }
   const info = classifyCall(call);
   const manual = call.work?.schedule_manual;
   const planned = manual && call.work.scheduled_at;
@@ -24,7 +33,7 @@ function callBrief(call) {
   return {
     title: shortFact(headline, 105),
     facts: details.slice(0, 2).map(s => shortFact(s, 130)),
-    next: shortFact(info.key === 'done' || time ? info.next : nextStepForCall(call, info), 110),
+    next: shortFact(info.key === 'done' ? info.next : extractFieldByLabels(source, ['Nächster Schritt']) || (time ? info.next : nextStepForCall(call, info)), 110),
     time,
   };
 }

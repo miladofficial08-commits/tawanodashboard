@@ -4,7 +4,7 @@
 // Agenten - haeufig Englisch ("Herr Rezai called to inquire about ..."). Der
 // Handwerker soll das nie lesen muessen. Hier wird englischer Text erkannt und
 // durch einen deutschen Satz ersetzt, der ausschliesslich aus dem Text abgeleitet
-// wird. Es wird nichts dazuerfunden; der Originaltext bleibt im Detail sichtbar.
+// wird. Das Original dient nur der Erkennung einer noch fehlenden deutschen Auswertung.
 //
 // Dauerhaft besser ist die Sprache am Agenten selbst (Post Call Analysis auf
 // Deutsch) - das hier ist die Absicherung fuer alles, was trotzdem englisch kommt.
@@ -36,7 +36,7 @@
   // auftauchen - deutsche Texte mit einem Fremdwort bleiben unangetastet.
   function isEnglish(text) {
     const value = String(text || '').trim();
-    if (value.length < 12) return false;
+    if (/\b(brief interaction|initial greeting|microwave|transfer|greeting|interaction)\b/i.test(value) && !count(value, GERMAN)) return true;
     const english = count(value, ENGLISH);
     return english >= 2 && english > count(value, GERMAN);
   }
@@ -52,18 +52,22 @@
   // Deutscher Satz aus dem, was im englischen Text tatsaechlich steht.
   function rewrite(text) {
     const value = String(text || '');
+    if (/^brief interaction[.!]?$/i.test(value)) return 'Kurzes Gespräch. Ein konkretes Anliegen geht aus dem Kurztitel nicht hervor.';
+    if (/^initial greeting[.!]?$/i.test(value)) return 'Begrüßung zu Gesprächsbeginn. Weitere Gesprächsinhalte gehen aus dem Kurztitel nicht hervor.';
     const topics = TOPICS.filter(([pattern]) => pattern.test(value)).slice(0, 2).map(([, label]) => label);
     const who = person(value) || 'Der Anrufer';
     const parts = [who + ' hat angerufen' + (topics.length ? ' – es ging um ' + joinList(topics) : '') + '.'];
     if (/\b(call ?back|callback|return (?:the |his |her )?call)\b/i.test(value)) parts.push('Rückruf gewünscht.');
     if (/\b(transfer\w*|forward\w*|colleague|staff member)\b/i.test(value)) parts.push('Das Gespräch sollte weitergeleitet werden.');
     if (/\b(voicemail|mailbox|answering machine)\b/i.test(value)) parts.push('Es wurde die Mailbox erreicht.');
-    if (/\b(hung up|hang up|disconnected|ended the call)\b/i.test(value) && topics.length === 0) parts.push('Es wurde kein Anliegen genannt.');
+    if (/\b(greeted|greeting)\b/i.test(value)) parts.push('Der Assistent hat den Anrufer begrüßt.');
+    if (/\b(hung up|hang up|disconnected|ended the call)\b/i.test(value)) parts.push('Das Gespräch wurde beendet.');
+    if (/\b(without (?:stating|mentioning|expressing)|did not (?:articulate|state|mention))\b/i.test(value) && topics.length === 0) parts.push('Es wurde kein Anliegen genannt.');
     if (!topics.length && parts.length === 1) parts.push('Das Anliegen geht aus der Zusammenfassung des Anbieters nicht klar hervor.');
     return parts.join(' ');
   }
   // {text, translated, original}: `text` ist immer deutsch, `original` nur gesetzt,
-  // wenn der Anbietertext ersetzt wurde (fuer die Anzeige im Detail).
+  // wenn der Anbietertext ersetzt wurde (niemals als englischen Rohtext anzeigen).
   function germanSummary(text) {
     const value = String(text == null ? '' : text).trim();
     if (!value) return { text: '', translated: false, original: '' };

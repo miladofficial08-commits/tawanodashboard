@@ -141,8 +141,8 @@ function showLogin() {
 }
 
 function customerLabel(call) {
-  const name = String(call.customerName || call.name || '').trim();
-  if (name) return name;
+  const name = String(call.customerName || call.name || extractFieldByLabels(detailSummarySource(call), ['Name']) || '').trim();
+  if (name && !/^nicht genannt[.!]?$/i.test(name)) return name;
   const phone = customerPhone(call);
   if (phone) return 'Anrufer ' + phone;
   return 'Neue Anfrage';
@@ -185,8 +185,8 @@ function summaryFor(call) {
   // Ohne Zusammenfassung des Anbieters wenigstens sagen, was wirklich bekannt ist -
   // "Das Gespräch wurde kurz zusammengefasst." hat dem Handwerker nichts gebracht.
   const seconds = Math.round((Number(call.durationMs) || 0) / 1000);
-  if (seconds > 0 && seconds < 20) return 'Sehr kurzer Anruf (' + seconds + ' Sek). Es kam kein Anliegen zur Sprache.';
-  if (reason.includes('remote') || reason.includes('user_hangup')) return 'Der Anrufer hat aufgelegt, bevor ein Anliegen erfasst wurde.';
+  if (seconds > 0 && seconds < 20) return 'Sehr kurzer Anruf (' + seconds + ' Sek). Die Gesprächsauswertung liegt noch nicht vor.';
+  if (reason.includes('remote') || reason.includes('user_hangup')) return 'Der Anrufer hat aufgelegt. Eine Zusammenfassung liegt noch nicht vor.';
   if (seconds > 0) return 'Anruf über ' + (seconds >= 60 ? Math.round(seconds / 60) + ' Min' : seconds + ' Sek') + '. Der Anbieter hat keine Zusammenfassung geliefert.';
   return 'Zu diesem Anruf liegt keine Zusammenfassung vor.';
 }
@@ -207,7 +207,7 @@ function computeClassification(call) {
   if (call.work?.state_manual && call.work.state === 'open') return {key:'callback',label:'Offen',badge:'callback',next:'Anliegen bearbeiten'};
   const status = String(call.status || call.retellStatus || '').toLowerCase();
   const reason = String(call.disconnectionReason || call.disconnection_reason || '').toLowerCase();
-  const text = summaryFor(call).toLowerCase();
+  const text = (detailSummarySource(call) || summaryFor(call)).toLowerCase();
   if (['ongoing','in-progress','starting','registered'].includes(status)) return { key:'live', label:'Im Gespräch', badge:'live', next:'Läuft gerade' };
   if (status.includes('error') || status.includes('network')) return { key:'problem', label:'Problemfall', badge:'problem', next:'Sofort prüfen' };
   // Hat der Telefonassistent eine Rueckrufzeit strukturiert geliefert, ist das Anliegen

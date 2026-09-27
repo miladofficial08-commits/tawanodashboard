@@ -10,6 +10,7 @@
 
 const { envValue } = require('./tenant');
 const { callbackFields } = require('./callback-fields');
+const { dashboardSummary } = require('./dashboard-summary');
 
 const API_BASE = 'https://api.elevenlabs.io/v1/convai';
 
@@ -223,6 +224,7 @@ async function getConversation(conversationId, timeoutMs = 10000) {
   const c = await response.json().catch(() => ({}));
   const meta = c.metadata || {};
   const analysis = c.analysis || {};
+  const structuredSummary = dashboardSummary(analysis.data_collection_results);
   const phone = phoneInfoFromMeta(meta);
 
   const turns = Array.isArray(c.transcript) ? c.transcript : [];
@@ -250,7 +252,7 @@ async function getConversation(conversationId, timeoutMs = 10000) {
       start_timestamp: Number(meta.start_time_unix_secs || 0) * 1000 || null,
       duration_ms: Math.max(0, Number(meta.call_duration_secs || 0) * 1000),
       disconnection_reason: mapTerminationReason(meta.termination_reason) || null,
-      summary: String(analysis.transcript_summary || analysis.call_summary_title || '').trim(),
+      summary: String(structuredSummary || analysis.transcript_summary || analysis.call_summary_title || '').trim(),
       user_sentiment: mapSentiment(analysis),
       call_successful: callSuccessfulToBool(analysis.call_successful),
       callback: callbackFromAnalysis(analysis),
@@ -300,7 +302,8 @@ async function enrichConversations(agentId, calls) {
         if (detailCache.size > 1000) detailCache.clear();
         detailCache.set(key, { detail, expires: Date.now() + 60000 });
         const c = detail.call;
-        enriched[index] = Object.assign({}, call, { phoneNumber:c.from_number, from_number:c.from_number, to_number:c.to_number, direction:c.direction, summary:c.summary || call.summary, callback:c.callback || call.callback || null, call_analysis:{call_summary:c.summary || call.summary,call_successful:c.call_successful,user_sentiment:c.user_sentiment} });
+        const analysis = {call_summary:c.summary || call.summary,call_successful:c.call_successful,user_sentiment:c.user_sentiment};
+        enriched[index] = Object.assign({}, call, { phoneNumber:c.from_number, from_number:c.from_number, to_number:c.to_number, direction:c.direction, summary:c.summary || call.summary, callback:c.callback || call.callback || null, callAnalysis:analysis, call_analysis:analysis });
       } catch (_) { enriched[index] = Object.assign({}, call, { detail_unavailable:true }); }
     }
   }));

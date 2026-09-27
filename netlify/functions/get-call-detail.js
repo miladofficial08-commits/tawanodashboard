@@ -1,5 +1,6 @@
 const { bearerTokenFromEvent, envValue, json, readBody, resolveTenantContextFromAccessToken, tenantProvider, tenantAgentId } = require('./_lib/tenant');
 const elevenlabs = require('./_lib/elevenlabs');
+const { dashboardSummary } = require('./_lib/dashboard-summary');
 
 // Liefert Transkript + Detail-Analyse EINES Anrufs. Streng getrennt: der Anruf
 // muss zum Voice Agent des eingeloggten Kunden gehoeren.
@@ -72,7 +73,7 @@ exports.handler = async (event) => {
       start_timestamp: c.start_timestamp || null,
       duration_ms: Number(c.duration_ms || 0),
       disconnection_reason: c.disconnection_reason || null,
-      summary: ca.call_summary || '',
+      summary: dashboardSummary(ca.custom_analysis_data) || ca.call_summary || '',
       user_sentiment: ca.user_sentiment || null,
       call_successful: (typeof ca.call_successful === 'boolean') ? ca.call_successful : null,
       in_voicemail: Boolean(ca.in_voicemail),

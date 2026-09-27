@@ -73,6 +73,18 @@ function appendQueryParams(url, params) {
   }
 }
 
+function normalizeBracedUrls(text) {
+  return String(text || '').replace(/\{(https?:\/\/[^}\s]+)\}/g, '$1');
+}
+
+function renderSmsTemplate(template, values) {
+  const v = values || {};
+  return normalizeBracedUrls(String(template || '')
+    .replaceAll('{booking_link}', v.bookingLink || '')
+    .replaceAll('{feedback_link}', v.feedbackLink || '')
+    .replaceAll('{customer_name}', v.customerName || ''));
+}
+
 async function sendViaWebhook(payload) {
   const webhookUrl = envValue('SMS_WEBHOOK_URL').trim();
   if (!webhookUrl) {
@@ -296,10 +308,11 @@ exports.handler = async (event) => {
     : '';
 
   // SMS-Text ausschliesslich aus dem Supabase-Template bauen.
-  let message = String(template)
-    .replaceAll('{booking_link}', bookingLink || '')
-    .replaceAll('{feedback_link}', feedbackLink || '')
-    .replaceAll('{customer_name}', name || '');
+  let message = renderSmsTemplate(template, {
+    bookingLink,
+    feedbackLink,
+    customerName: name,
+  });
   // Falls Link vorhanden, Platzhalter aber fehlt: anhaengen.
   if (bookingLink && !message.includes(bookingLink)) {
     message = message.trimEnd() + ' Hier buchen: ' + bookingLink;
@@ -414,5 +427,6 @@ exports.handler = async (event) => {
 
 exports.__test = {
   appendQueryParams,
+  renderSmsTemplate,
   recentBookingExists,
 };
